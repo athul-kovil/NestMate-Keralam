@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NestMate Kerala — Find Roommates & Shared Spaces Nearby (Kochi, Trivandrum, Calicut)</title>
+  
+  <!-- Modern Clean Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Top Sticky Navigation Bar -->
+  <header class="navbar">
+    <div class="container navbar-inner">
+      <!-- Brand Logo -->
+      <a href="#" class="brand" onclick="app.showMainView(); return false;">
+        <div class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </div>
+        <div>
+          Nest<span>Mate</span>
+          <span class="brand-badge" style="background:#d1fae5; color:#065f46;">Kerala 🌴</span>
+        </div>
+      </a>
+
+      <!-- Navigation Links -->
+      <nav class="nav-links">
+        <button class="nav-btn active" id="nav-btn-explore" onclick="app.showMainView(); app.switchTab('all');">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16.2 7.8-2 6.4-6.4 2 2-6.4z"/></svg>
+          Explore Rooms
+        </button>
+        <button class="nav-btn" id="nav-btn-login-page" onclick="app.showLoginView()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+          Login Page
+        </button>
+        <button class="nav-btn" id="nav-btn-map" onclick="app.showMainView(); app.setLayoutView('map');">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg>
+          Google Map
+        </button>
+        <button class="nav-btn" id="nav-btn-chat" onclick="app.openChatModal()">
+          <div style="position: relative; display: inline-flex;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span class="badge-count" id="nav-unread-count" style="display: none;">0</span>
+          </div>
+          Messages
+        </button>
+      </nav>
+
+      <!-- Nav Actions -->
+      <div class="nav-actions">
+        <!-- Promote / Share App Button -->
+        <button class="btn btn-whatsapp btn-sm" onclick="app.shareAppOnWhatsApp()" title="Promote on WhatsApp">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          Share
+        </button>
+
+        <!-- Post a Room Button -->
+        <button class="btn btn-primary btn-sm" onclick="app.openPostRoomModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Post a Room
+        </button>
+
+        <!-- Theme Toggle -->
+        <button class="btn btn-secondary btn-icon" id="theme-toggle-btn" title="Toggle Dark/Light Mode" onclick="app.toggleTheme()">
+          <svg id="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          <svg id="theme-icon-moon" style="display: none;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        </button>
+
+        <!-- User Profile Pill / Auth Button Container -->
+        <div id="nav-user-container"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       VIEW 1: DEDICATED FULL-SCREEN LOGIN PAGE (Step 1)
+       ========================================================================== -->
+  <section class="login-page-section" id="view-login-page">
+    <div class="container">
+      
+      <!-- Split Card -->
+      <div class="login-split-card">
+        
+        <!-- Left Side: Kerala Welcome & Feature Showcase -->
+        <div class="login-hero-side">
+          <div>
+            <div class="hero-pill" style="background: rgba(255,255,255,0.2); color: #fff; border: none; margin-bottom: 12px;">
+              🌴 Kerala Roommate Network
+            </div>
+            <h2 style="font-size: 2rem; font-weight: 800; line-height: 1.2; margin-bottom: 12px;">
+              Find Your Room & Flatmates in Kerala
+            </h2>
+            <p style="font-size: 0.95rem; opacity: 0.9; line-height: 1.5;">
+              Connect directly with verified IT professionals, students, and roommates in Kochi (Infopark), Trivandrum (Technopark), and Calicut (Cyberpark).
+            </p>
+
+            <ul class="login-feature-list">
+              <li class="login-feature-item">
+                <div class="login-feature-icon">1</div>
+                <div>
+                  <strong>Step 1: Sign in with Mobile (+91) or Email</strong>
+                  <div style="font-size: 0.8rem; opacity: 0.85;">Instant OTP verification without complex passwords.</div>
+                </div>
+              </li>
+              <li class="login-feature-item">
+                <div class="login-feature-icon">2</div>
+                <div>
+                  <strong>Step 2: Enter Details & Habits</strong>
+                  <div style="font-size: 0.8rem; opacity: 0.85;">Smoking, drinking, work shift, and rent budget.</div>
+                </div>
+              </li>
+              <li class="login-feature-item">
+                <div class="login-feature-icon">3</div>
+                <div>
+                  <strong>Step 3: Post Room with Photos & Google Maps</strong>
+                  <div style="font-size: 0.8rem; opacity: 0.85;">Pinpoint exact building on live Google Maps.</div>
+                </div>
+              </li>
+              <li class="login-feature-item">
+                <div class="login-feature-icon">4</div>
+                <div>
+                  <strong>Step 4: Promote & Chat on WhatsApp</strong>
+                  <div style="font-size: 0.8rem; opacity: 0.85;">Direct contact number, email, and 1-click WhatsApp share.</div>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <div style="font-size: 0.82rem; opacity: 0.8; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 16px;">
+            🔒 Safe & verified co-living in Kerala. Free forever.
+          </div>
+        </div>
+
+        <!-- Right Side: The Login / Registration Form -->
+        <div class="login-form-side">
+          
+          <div class="step-progress-bar">
+            <div class="step-pill active" id="login-step-pill-1">
+              <span class="step-number">1</span>
+              <span>Step 1: Login</span>
+            </div>
+            <span style="color: var(--text-light);">&rarr;</span>
+            <div class="step-pill" id="login-step-pill-2">
+              <span class="step-number">2</span>
+              <span>Step 2: User Details</span>
+            </div>
+          </div>
+
+          <div class="login-form-header">
+            <h2>Welcome to NestMate</h2>
+            <p>Login using your mobile number or email address below:</p>
+          </div>
+
+          <!-- Login Method Switcher Tabs -->
+          <div class="auth-nav-tabs">
+            <div class="auth-tab active" id="page-tab-mobile" onclick="app.switchPageLoginMethod('mobile')">
+              📱 Mobile (+91)
+            </div>
+            <div class="auth-tab" id="page-tab-email" onclick="app.switchPageLoginMethod('email')">
+              ✉️ Email & Password
+            </div>
+            <div class="auth-tab" id="page-tab-signup" onclick="app.switchPageLoginMethod('signup')">
+              ✨ Register New
+            </div>
+          </div>
+
+          <!-- Form 1: Mobile Login -->
+          <form id="page-form-mobile" onsubmit="app.handlePageMobileLogin(event)">
+            <div class="form-group">
+              <label class="form-label">Mobile Number</label>
+              <div style="display: flex; gap: 8px;">
+                <select class="form-control" style="width: 105px; flex-shrink: 0;">
+                  <option value="+91" selected>🇮🇳 +91</option>
+                  <option value="+1">🇺🇸 +1</option>
+                  <option value="+971">🇦🇪 +971</option>
+                </select>
+                <input type="tel" class="form-control" id="page-mobile-input" placeholder="Enter 10-digit mobile number" value="98451 23456" required>
+              </div>
+              <small style="color: var(--text-muted); font-size: 0.75rem; margin-top: 4px; display: block;">
+                We will send you a one-time verification code (OTP).
+              </small>
+            </div>
+
+            <!-- OTP Input -->
+            <div class="form-group" id="page-otp-group" style="display: none;">
+              <label class="form-label">Enter 4-Digit Verification OTP</label>
+              <input type="text" maxlength="4" class="form-control" id="page-otp-input" placeholder="1234" style="letter-spacing: 6px; font-size: 1.25rem; font-weight: 700; text-align: center;">
+              <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.78rem;">
+                <span style="color:var(--success);">✅ Demo OTP autofilled: <strong>1234</strong></span>
+                <span style="color:var(--text-muted);">Instant verify</span>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 10px;" id="page-btn-mobile-submit">
+              Continue with Mobile &rarr;
+            </button>
+          </form>
+
+          <!-- Form 2: Email Login -->
+          <form id="page-form-email" style="display: none;" onsubmit="app.handlePageEmailLogin(event)">
+            <div class="form-group">
+              <label class="form-label">Email Address</label>
+              <input type="email" class="form-control" id="page-email-input" placeholder="e.g. rahul@gmail.com" value="rahul@gmail.com" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Password</label>
+              <div style="position: relative;">
+                <input type="password" class="form-control" id="page-password-input" value="password123" required>
+                <button type="button" onclick="app.togglePasswordVisibility('page-password-input')" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);">
+                  👁️
+                </button>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 10px;">
+              Sign In with Email &rarr;
+            </button>
+          </form>
+
+          <!-- Form 3: Register New Account -->
+          <form id="page-form-signup" style="display: none;" onsubmit="app.handlePageSignup(event)">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Full Name</label>
+                <input type="text" class="form-control" id="page-signup-name" placeholder="e.g. Rahul Menon" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Age & Gender</label>
+                <div style="display: flex; gap: 8px;">
+                  <input type="number" class="form-control" id="page-signup-age" placeholder="Age" min="18" max="70" value="25" required>
+                  <select class="form-control" id="page-signup-gender">
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Mobile Number (+91)</label>
+                <input type="tel" class="form-control" id="page-signup-phone" placeholder="98451 23456" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email Address</label>
+                <input type="email" class="form-control" id="page-signup-email" placeholder="name@gmail.com" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Occupation & Office Location</label>
+              <input type="text" class="form-control" id="page-signup-occupation" placeholder="e.g. Software Engineer @ Infopark / Student" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 10px;">
+              Create Account & Next Step &rarr;
+            </button>
+          </form>
+
+          <!-- Guest Browse Button -->
+          <div style="text-align: center; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border-color);">
+            <button class="btn btn-ghost" onclick="app.showMainView();">
+              👀 Skip to Browse Rooms First &rarr;
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       VIEW 2: DEDICATED USER DETAILS ONBOARDING PAGE (Step 2)
+       ========================================================================== -->
+  <section class="login-page-section" id="view-onboarding-page" style="display: none;">
+    <div class="container" style="max-width: 780px;">
+      
+      <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 36px; box-shadow: var(--shadow-xl);">
+        
+        <div class="step-progress-bar">
+          <div class="step-pill completed">
+            <span class="step-number">✓</span>
+            <span>Step 1: Account Created</span>
+          </div>
+          <span style="color: var(--text-light);">&rarr;</span>
+          <div class="step-pill active">
+            <span class="step-number">2</span>
+            <span>Step 2: Details about User & Habits</span>
+          </div>
+        </div>
+
+        <div class="login-form-header">
+          <h2>Tell Us About Your Character & Habits</h2>
+          <p>By entering your lifestyle details, NestMate can calculate your exact compatibility score with rooms and roommates in Kerala!</p>
+        </div>
+
+        <form id="form-onboarding-details" onsubmit="app.handleSaveOnboardingDetails(event)">
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Smoking Habit</label>
+              <select class="form-control" id="onboard-smoking">
+                <option value="no">🚭 Strictly Non-Smoker</option>
+                <option value="social">💨 Balcony / Outdoor Only</option>
+                <option value="yes">🚬 Smoker</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Drinking Habit</label>
+              <select class="form-control" id="onboard-drinking">
+                <option value="no">🚫 Strictly Non-Drinker (Alcohol-Free)</option>
+                <option value="social" selected>🍷 Social Drinker</option>
+                <option value="regular">🍻 Regular Drinker</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Working Routine & Hours</label>
+              <select class="form-control" id="onboard-shift">
+                <option value="day">Day Shift (9:00 AM – 6:00 PM)</option>
+                <option value="wfh">Remote / Work from Home (WFH)</option>
+                <option value="night">Night Shift (US Shift / Tech Park)</option>
+                <option value="student">Student / College Hours</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Target Monthly Rent Split Budget (₹/month)</label>
+              <input type="number" class="form-control" id="onboard-budget" step="500" value="7000" placeholder="e.g. 7000" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Housekeeping & Cleanliness</label>
+              <select class="form-control" id="onboard-cleanliness">
+                <option value="high">Super Clean & Organized</option>
+                <option value="moderate" selected>Moderate (Clean up after cooking)</option>
+                <option value="relaxed">Relaxed / Casual</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Dietary Preference</label>
+              <select class="form-control" id="onboard-diet">
+                <option value="any">Any / Kerala Meals & Non-Veg</option>
+                <option value="veg">Vegetarian Only</option>
+                <option value="vegan">Vegan</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">About Me & House Expectations</label>
+            <textarea class="form-control" id="onboard-bio" rows="3" placeholder="Tell potential flatmates about yourself, your hobbies, sleep routine, and what kind of roommate vibe you prefer..."></textarea>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px;">
+            <button type="button" class="btn btn-ghost" onclick="app.showMainView()">
+              Skip for now &rarr;
+            </button>
+            <button type="submit" class="btn btn-primary btn-lg">
+              Save Details & Start Matching &rarr;
+            </button>
+          </div>
+        </form>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       VIEW 3: MAIN ROOM EXPLORER & DASHBOARD
+       ========================================================================== -->
+  <div id="view-main-app" style="display: none;">
+    
+    <!-- Hero Section (Kerala Themed) -->
+    <section class="hero" id="hero-section">
+      <div class="container hero-content">
+        <div class="hero-pill">
+          🌴 Kerala's Dedicated Roommate & Flatshare Community
+        </div>
+        <h1 class="hero-title">
+          Find Compatible Roommates in <br>
+          <span class="gradient-text">Kerala (Kochi, Trivandrum & Calicut)</span>
+        </h1>
+        <p class="hero-subtitle">
+          Match with working professionals and students near Infopark Kakkanad, Technopark Trivandrum, and Cyberpark Kozhikode by rent split, work schedule, habits, and Google Map proximity.
+        </p>
+
+        <!-- Advanced Search Bar -->
+        <div class="hero-search-box">
+          <div class="search-field">
+            <label>Kerala Location / Hub</label>
+            <input type="text" id="search-location" list="kerala-hubs-list" placeholder="e.g. Kakkanad, Infopark, Kazhakkoottam..." oninput="app.handleSearchInput()">
+            <datalist id="kerala-hubs-list">
+              <option value="Kakkanad (Infopark), Kochi">
+              <option value="Edappally, Kochi">
+              <option value="Palarivattom, Kochi">
+              <option value="Kaloor, Kochi">
+              <option value="Kazhakkoottam (Technopark), Trivandrum">
+              <option value="Karyavattom, Trivandrum">
+              <option value="Kowdiar, Trivandrum">
+              <option value="Cyberpark, Kozhikode">
+              <option value="Hilite City, Kozhikode">
+              <option value="Swaraj Round, Thrissur">
+            </datalist>
+          </div>
+
+          <div class="search-field">
+            <label>Roommates Needed</label>
+            <select id="search-roommates" onchange="app.handleSearchInput()">
+              <option value="all">Any Count</option>
+              <option value="1">1 Roommate</option>
+              <option value="2">2 Roommates</option>
+              <option value="3">3+ Roommates</option>
+            </select>
+          </div>
+
+          <div class="search-field">
+            <label>Max Rent Split (₹/month)</label>
+            <input type="number" id="search-budget" placeholder="e.g. 7000" oninput="app.handleSearchInput()">
+          </div>
+
+          <div>
+            <button class="btn btn-primary btn-lg" onclick="app.executeSearch()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              Find Match
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Lifestyle Filter Tags -->
+        <div class="quick-tags">
+          <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-right: 4px;">Top Kerala Hubs:</span>
+          <button class="quick-tag" onclick="app.setQuickCity('Kakkanad')">
+            📍 Kakkanad (Infopark)
+          </button>
+          <button class="quick-tag" onclick="app.setQuickCity('Kazhakkoottam')">
+            📍 Kazhakkoottam (Technopark)
+          </button>
+          <button class="quick-tag" onclick="app.setQuickCity('Edappally')">
+            📍 Edappally
+          </button>
+          <button class="quick-tag" onclick="app.setQuickCity('Cyberpark')">
+            📍 Calicut Cyberpark
+          </button>
+          <button class="quick-tag" data-filter="non-smoker" onclick="app.toggleQuickFilter('non-smoker', this)">
+            🚭 Non-Smokers Only
+          </button>
+          <button class="quick-tag" data-filter="day-shift" onclick="app.toggleQuickFilter('day-shift', this)">
+            💼 Day Shift IT / Office
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main App Shell -->
+    <main class="app-shell">
+      <div class="container">
+        
+        <!-- Promotion Banner -->
+        <div class="promo-banner">
+          <div class="promo-banner-text">
+            <h3>📢 Want to find roommates fast or promote your room across Kerala?</h3>
+            <p>Share your room or this website on WhatsApp groups, college batches (CET, CUSAT, MEC), and Infopark / Technopark Slack channels to get genuine roommates quickly!</p>
+          </div>
+          <div class="promo-banner-actions">
+            <button class="btn btn-whatsapp" onclick="app.shareAppOnWhatsApp()">
+              📲 Share on WhatsApp
+            </button>
+            <button class="btn btn-secondary" onclick="app.copyAppShareLink()">
+              📋 Copy Share Link
+            </button>
+          </div>
+        </div>
+
+        <!-- Top Control Bar (Tabs, View Toggle, Sort) -->
+        <div class="controls-bar">
+          <div class="view-tabs">
+            <button class="tab-btn active" id="tab-all" onclick="app.switchTab('all')">
+              All Rooms (<span id="count-all">0</span>)
+            </button>
+            <button class="tab-btn" id="tab-private" onclick="app.switchTab('private')">
+              Private Rooms
+            </button>
+            <button class="tab-btn" id="tab-shared" onclick="app.switchTab('shared')">
+              Shared Rooms
+            </button>
+            <button class="tab-btn" id="tab-my-listings" onclick="app.switchTab('my-listings')">
+              My Posted Rooms
+            </button>
+          </div>
+
+          <div class="controls-right">
+            <select class="sort-select" id="sort-select" onchange="app.handleSortChange(this.value)">
+              <option value="match_desc">⚡ Highest Match % (Recommended)</option>
+              <option value="price_asc">💰 Rent: Low to High (₹)</option>
+              <option value="price_desc">💎 Rent: High to Low (₹)</option>
+              <option value="newest">🕒 Newest First</option>
+            </select>
+
+            <button class="btn btn-secondary btn-sm" onclick="app.openFiltersModal()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" x2="20" y1="21" y2="21"/><line x1="4" x2="20" y1="14" y2="14"/><line x1="4" x2="20" y1="7" y2="7"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="14" r="3"/><circle cx="10" cy="21" r="3"/></svg>
+              Filters
+              <span id="active-filter-badge" style="display:none; background:var(--primary); color:#fff; border-radius:10px; padding:1px 6px; font-size:0.7rem;">0</span>
+            </button>
+
+            <div class="view-tabs" style="padding: 2px;">
+              <button class="tab-btn active" id="btn-view-grid" title="Grid View" onclick="app.setLayoutView('grid')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+              </button>
+              <button class="tab-btn" id="btn-view-map" title="Direct Google Map" onclick="app.setLayoutView('map')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg>
+                Google Map
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results Summary Header -->
+        <div class="results-header">
+          <div class="results-count" id="results-count-text">
+            Showing <span>0 rooms</span> in Kerala
+          </div>
+          <div class="active-filters-chips" id="active-filters-container"></div>
+        </div>
+
+        <!-- Main Listings Display Area -->
+        <div id="listings-container" class="listings-grid"></div>
+
+        <!-- Direct Google Map View Container -->
+        <div id="map-view-wrapper" class="map-view-container" style="display: none; height: auto;">
+          <div style="grid-column: 1 / -1;">
+            <div class="google-map-wrapper">
+              <div class="google-map-bar">
+                <div style="font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                  <span>Live Google Maps Kerala Explorer</span>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                  <button class="btn btn-sm btn-outline" onclick="app.focusGoogleMap('Infopark Kakkanad, Kochi, Kerala')">Infopark Kochi</button>
+                  <button class="btn btn-sm btn-outline" onclick="app.focusGoogleMap('Technopark, Kazhakkoottam, Trivandrum, Kerala')">Technopark Trivandrum</button>
+                  <button class="btn btn-sm btn-outline" onclick="app.focusGoogleMap('Edappally, Kochi, Kerala')">Edappally</button>
+                  <button class="btn btn-sm btn-outline" onclick="app.focusGoogleMap('Cyberpark, Kozhikode, Kerala')">Cyberpark Calicut</button>
+                </div>
+              </div>
+
+              <iframe id="main-google-map-iframe" class="google-map-iframe" src="https://maps.google.com/maps?q=Infopark%20Kakkanad,%20Kochi,%20Kerala&t=&z=13&ie=UTF8&iwloc=&output=embed" allowfullscreen="" loading="lazy"></iframe>
+
+              <div class="google-map-bar">
+                <span id="map-current-query-text" style="font-size: 0.85rem; color: var(--text-muted);">
+                  Showing: <strong>Infopark Kakkanad, Kochi, Kerala</strong> on Google Maps
+                </span>
+                <a id="btn-open-external-gmap" href="https://www.google.com/maps/search/?api=1&query=Infopark+Kakkanad+Kochi+Kerala" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary">
+                  🗺️ Open in Google Maps App &rarr;
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+  </div>
+
+  <!-- ==========================================================================
+       MODALS SECTION
+       ========================================================================== -->
+
+  <!-- 1. Post a Room Wizard Modal (With Direct Google Map & Real Photo Upload) -->
+  <div class="modal-backdrop" id="modal-post-room">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-header">
+        <div class="modal-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Post a Room & Find Roommates in Kerala
+        </div>
+        <button class="btn btn-ghost btn-icon" onclick="app.closeModal('modal-post-room')">&times;</button>
+      </div>
+
+      <form id="form-post-room" onsubmit="app.handleCreateListing(event)">
+        <div class="modal-body">
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Room / Flat Title</label>
+              <input type="text" class="form-control" id="post-title" placeholder="e.g. 1 Bed Available in 2BHK Flat near Infopark Gate 1" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Room Type</label>
+              <select class="form-control" id="post-room-type">
+                <option value="Private Room">Private Bedroom (Single Occupancy)</option>
+                <option value="Shared Room (Twin)">Twin Sharing (2 in a room)</option>
+                <option value="Shared Room (3 Bed)">3 Sharing</option>
+                <option value="Entire Apartment">Entire Apartment to Split</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Location & Google Maps Integration -->
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Kerala Location / Area</label>
+              <input type="text" class="form-control" id="post-location" list="post-kerala-hubs" placeholder="e.g. Kakkanad, Kochi" oninput="app.updateFormMapPreview()" required>
+              <datalist id="post-kerala-hubs">
+                <option value="Kakkanad (Infopark), Kochi">
+                <option value="Edappally, Kochi">
+                <option value="Palarivattom, Kochi">
+                <option value="Kaloor, Kochi">
+                <option value="Vyttila, Kochi">
+                <option value="Kazhakkoottam (Technopark), Trivandrum">
+                <option value="Karyavattom, Trivandrum">
+                <option value="Kowdiar, Trivandrum">
+                <option value="Cyberpark, Kozhikode">
+                <option value="Hilite City, Kozhikode">
+                <option value="Swaraj Round, Thrissur">
+              </datalist>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Building / Landmark Address</label>
+              <input type="text" class="form-control" id="post-address" placeholder="e.g. Olive Heights, Near Infopark Expressway" oninput="app.updateFormMapPreview()" required>
+            </div>
+          </div>
+
+          <!-- Live Google Map Preview in Form -->
+          <div style="margin-bottom: 20px;">
+            <label class="form-label">📍 Live Google Map Location Preview</label>
+            <div style="border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border-color); height: 180px;">
+              <iframe id="post-google-map-preview" src="https://maps.google.com/maps?q=Kakkanad%20Kochi%20Kerala&t=&z=14&ie=UTF8&iwloc=&output=embed" style="width: 100%; height: 100%; border: 0;" allowfullscreen="" loading="lazy"></iframe>
+            </div>
+            <small style="color: var(--text-muted); font-size: 0.75rem; margin-top: 4px; display: block;">
+              Map automatically centers on your entered area and building in Kerala.
+            </small>
+          </div>
+
+          <!-- Financials in INR -->
+          <div class="form-row" style="background: var(--bg-surface-alt); padding: 14px; border-radius: var(--radius-md); margin-bottom: 18px;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">Rent Split Per Person (₹/month)</label>
+              <input type="number" class="form-control" id="post-rent-split" placeholder="e.g. 6500" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">Roommates Needed</label>
+              <select class="form-control" id="post-roommates-needed">
+                <option value="1">1 Roommate</option>
+                <option value="2">2 Roommates</option>
+                <option value="3">3+ Roommates</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Security Deposit (₹)</label>
+              <input type="number" class="form-control" id="post-deposit" placeholder="e.g. 15000">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Available Move-in Date</label>
+              <input type="text" class="form-control" id="post-available-date" placeholder="e.g. Immediate / Next Month 1st" value="Immediate">
+            </div>
+          </div>
+
+          <!-- Character & House Rules -->
+          <h4 style="font-size: 1rem; font-weight: 700; margin: 18px 0 10px; color: var(--primary);">
+            ⚖️ Character, Lifestyle & Preferences
+          </h4>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Smoking Policy</label>
+              <select class="form-control" id="post-smoking-rule">
+                <option value="no">Strictly Non-Smoking</option>
+                <option value="balcony_only">Permitted on Balcony Only</option>
+                <option value="yes">Smoking Allowed</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Drinking Policy</label>
+              <select class="form-control" id="post-drinking-rule">
+                <option value="no">Strictly Non-Drinking (Alcohol-Free)</option>
+                <option value="social" selected>Social Drinking Welcome</option>
+                <option value="yes">Drinking Allowed</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Preferred Roommate Working Shift</label>
+              <select class="form-control" id="post-shift-preference">
+                <option value="day">Day Shift (IT / Office hours preferred)</option>
+                <option value="wfh">Remote / Work from Home Friendly</option>
+                <option value="any" selected>Any Routine Welcome</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Gender Preference</label>
+              <select class="form-control" id="post-gender-preference">
+                <option value="any">Any Gender</option>
+                <option value="female">Female Only</option>
+                <option value="male">Male Only</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Real Photo Upload Zone -->
+          <div class="form-group">
+            <label class="form-label">Upload Room Pictures (Living Room, Bedroom, Kitchen, Washroom)</label>
+            <input type="file" id="post-file-input" accept="image/*" multiple style="display: none;" onchange="app.handleFileUpload(event)">
+            
+            <div class="photo-upload-zone" onclick="document.getElementById('post-file-input').click()">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" style="margin: 0 auto 8px;"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+              <div style="font-weight: 700; font-size: 0.95rem;">Click to Upload Real Photos from Device</div>
+              <div style="font-size: 0.78rem; color: var(--text-muted);">Supports JPG, PNG, WEBP (Multiple photos allowed)</div>
+            </div>
+
+            <!-- Uploaded Photos Previews -->
+            <div class="photo-previews" id="post-photo-previews"></div>
+          </div>
+
+          <!-- Amenities Checklist -->
+          <div class="form-group">
+            <label class="form-label">Included Amenities & Facilities</label>
+            <div class="amenities-grid">
+              <label class="amenity-checkbox"><input type="checkbox" checked value="High-Speed WiFi"> <span>📶 High-Speed WiFi</span></label>
+              <label class="amenity-checkbox"><input type="checkbox" checked value="Air Conditioning"> <span>❄️ Air Conditioning</span></label>
+              <label class="amenity-checkbox"><input type="checkbox" checked value="Attached Bathroom"> <span>🚿 Attached Bathroom</span></label>
+              <label class="amenity-checkbox"><input type="checkbox" checked value="Washing Machine"> <span>🧺 Washing Machine</span></label>
+              <label class="amenity-checkbox"><input type="checkbox" checked value="Modular Kitchen"> <span>🍳 Kitchen & Cooking Access</span></label>
+              <label class="amenity-checkbox"><input type="checkbox" checked value="Power Backup"> <span>⚡ 24/7 Power Backup</span></label>
+              <label class="amenity-checkbox"><input type="checkbox" value="Balcony View"> <span>🌅 Balcony</span></label>
+              <label class="amenity-checkbox"><input type="checkbox" value="2-Wheeler Parking"> <span>🛵 2-Wheeler Parking</span></label>
+              <label class="amenity-checkbox"><input type="checkbox" value="Car Parking"> <span>🚗 Car Parking</span></label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Detailed Description</label>
+            <textarea class="form-control" id="post-description" rows="3" placeholder="Describe the flat, distance to Infopark/Technopark or metro, nearby bus stops, and what kind of roommate you are looking for..." required></textarea>
+          </div>
+
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="app.closeModal('modal-post-room')">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-lg">Publish Room Listing</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. Listing Detail & Direct Google Map Modal -->
+  <div class="modal-backdrop" id="modal-listing-detail">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-header">
+        <div class="modal-title" id="detail-modal-title">Room Details</div>
+        <button class="btn btn-ghost btn-icon" onclick="app.closeModal('modal-listing-detail')">&times;</button>
+      </div>
+      <div class="modal-body" id="detail-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- 3. In-App Messenger / Chat Modal -->
+  <div class="modal-backdrop" id="modal-chat">
+    <div class="modal-dialog modal-xl" style="height: 640px;">
+      <div class="modal-header" style="padding: 12px 20px;">
+        <div class="modal-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Direct Messages & Roommate Connect
+        </div>
+        <button class="btn btn-ghost btn-icon" onclick="app.closeModal('modal-chat')">&times;</button>
+      </div>
+
+      <div class="chat-window">
+        <div class="chat-sidebar">
+          <div class="chat-sidebar-header">
+            <span>Conversations</span>
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal;">Live sync</span>
+          </div>
+          <div class="chat-thread-list" id="chat-thread-list"></div>
+        </div>
+
+        <div class="chat-main" id="chat-main-view">
+          <div class="chat-header" id="chat-active-header"></div>
+          <div class="chat-messages" id="chat-messages-container"></div>
+
+          <div class="icebreakers-row">
+            <button class="icebreaker-btn" onclick="app.sendQuickMessage('Namaskaram! Is this room still available?')">
+              👋 Namaskaram! Is this room open?
+            </button>
+            <button class="icebreaker-btn" onclick="app.sendQuickMessage('Can I visit the flat this weekend to check the room?')">
+              📅 Can I visit this weekend?
+            </button>
+            <button class="icebreaker-btn" onclick="app.sendQuickMessage('How far is the flat from Infopark / Technopark?')">
+              🏢 How far from tech park?
+            </button>
+            <button class="icebreaker-btn" onclick="app.sendQuickMessage('Are electricity, WiFi and maintenance included in the rent split?')">
+              💰 Are utilities included in rent?
+            </button>
+          </div>
+
+          <form class="chat-input-bar" onsubmit="app.handleSendMessage(event)">
+            <input type="text" class="chat-input" id="chat-input-field" placeholder="Type a message to host or roommate..." autocomplete="off">
+            <button type="submit" class="btn btn-primary btn-icon" title="Send Message">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Advanced Filters Modal -->
+  <div class="modal-backdrop" id="modal-filters">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title">Filter by Kerala Habits & Budget</div>
+        <button class="btn btn-ghost btn-icon" onclick="app.closeModal('modal-filters')">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Smoking Policy</label>
+          <select class="form-control" id="filter-smoking">
+            <option value="any">Any / No Preference</option>
+            <option value="no">Strictly Non-Smoking Only</option>
+            <option value="balcony_only">Balcony Smoking Allowed</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Drinking Policy</label>
+          <select class="form-control" id="filter-drinking">
+            <option value="any">Any / No Preference</option>
+            <option value="no">Non-Drinker Only</option>
+            <option value="social">Social Drinkers Allowed</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Work Shift</label>
+          <select class="form-control" id="filter-shift">
+            <option value="any">Any Shift</option>
+            <option value="day">Day Shift (IT / Office)</option>
+            <option value="wfh">Remote / WFH Friendly</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Gender Preference</label>
+          <select class="form-control" id="filter-gender">
+            <option value="any">Any Gender</option>
+            <option value="female">Female Only</option>
+            <option value="male">Male Only</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Maximum Rent Split: <strong id="filter-rent-val">₹25,000</strong>/month</label>
+          <input type="range" class="form-control" id="filter-rent-slider" min="2000" max="30000" step="500" value="25000" oninput="document.getElementById('filter-rent-val').textContent = '₹' + Number(this.value).toLocaleString('en-IN')">
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="app.resetFilters(); app.closeModal('modal-filters');">Reset</button>
+        <button type="button" class="btn btn-primary" onclick="app.applyAdvancedFilters(); app.closeModal('modal-filters');">Apply Filters</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notifications Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <div class="brand" style="margin-bottom: 12px;">
+            <div class="brand-icon" style="width: 32px; height: 32px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            </div>
+            <div>Nest<span>Mate</span> Kerala</div>
+          </div>
+          <p style="max-width: 340px; margin-bottom: 16px;">
+            The roommate matching platform connecting IT professionals and students across Kochi, Trivandrum, Kozhikode, and all of Kerala.
+          </p>
+        </div>
+
+        <div>
+          <div class="footer-title">Major Kerala Hubs</div>
+          <ul class="footer-links">
+            <li><a href="#" onclick="app.showMainView(); app.setQuickCity('Kakkanad'); return false;">Kochi — Kakkanad / Infopark</a></li>
+            <li><a href="#" onclick="app.showMainView(); app.setQuickCity('Kazhakkoottam'); return false;">Trivandrum — Technopark</a></li>
+            <li><a href="#" onclick="app.showMainView(); app.setQuickCity('Edappally'); return false;">Kochi — Edappally & Metro</a></li>
+            <li><a href="#" onclick="app.showMainView(); app.setQuickCity('Cyberpark'); return false;">Kozhikode — Cyberpark & Palazhi</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <div class="footer-title">Direct Tools</div>
+          <ul class="footer-links">
+            <li><a href="#" onclick="app.showLoginView(); return false;">Login / Register First</a></li>
+            <li><a href="#" onclick="app.openPostRoomModal(); return false;">Post Your Room with Real Photos</a></li>
+            <li><a href="#" onclick="app.showMainView(); app.setLayoutView('map'); return false;">Explore on Live Google Maps</a></li>
+            <li><a href="#" onclick="app.shareAppOnWhatsApp(); return false;">Share Platform on WhatsApp</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <div class="footer-title">Promote & Connect</div>
+          <ul class="footer-links">
+            <li><a href="#" onclick="app.copyAppShareLink(); return false;">Copy Shareable Link</a></li>
+            <li><a href="#" onclick="app.showLoginView(); return false;">Mobile / Email Sign In</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div>© 2026 NestMate Kerala. Find your ideal roommate & shared space in Kerala, India.</div>
+        <div style="display: flex; gap: 16px;">
+          <span>Direct Google Maps</span>
+          <span>WhatsApp Promotion Ready</span>
+          <span>Real Photo Uploads</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
