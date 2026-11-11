@@ -1,7 +1,8 @@
 /**
- * NestMate Kerala - Core Application Controller
+ * NestMate Kerala - Ultra-Modern Application Controller
  * Tailored for Kerala, India (Kochi, Trivandrum, Calicut)
- * Starts with dedicated Login Page (Step 1) -> User Details Onboarding (Step 2) -> Room Explorer & Google Map
+ * Featuring Interactive Photo Carousel, Photo Sharing, Google Maps,
+ * and Smooth Modal Scrolling.
  */
 
 class NestMateKeralaApp {
@@ -30,6 +31,13 @@ class NestMateKeralaApp {
     this.activeConversationId = null;
     this.newListingPhotos = [];
     this.pageOtpSent = false;
+
+    // Track active photo index in listing detail modal
+    this.detailActivePhotoIdx = 0;
+    this.detailActiveListing = null;
+
+    // Card photo carousel indices
+    this.cardPhotoIndices = {};
 
     this.init();
   }
@@ -83,6 +91,9 @@ class NestMateKeralaApp {
         document.body.style.overflow = '';
       }
     });
+
+    // Setup drag-and-drop for photo uploader
+    this.setupDragAndDrop();
   }
 
   /* ==========================================================================
@@ -271,10 +282,6 @@ class NestMateKeralaApp {
     this.showOnboardingView();
   }
 
-  /* ==========================================================================
-     Onboarding Handlers (Step 2: Details about User)
-     ========================================================================== */
-
   handleSaveOnboardingDetails(event) {
     event.preventDefault();
 
@@ -413,34 +420,81 @@ class NestMateKeralaApp {
   }
 
   /* ==========================================================================
-     Real Photo Uploading (FileReader Base64)
+     Real Photo Uploading (Drag, Drop, Preview & Scroll)
      ========================================================================== */
+
+  setupDragAndDrop() {
+    const dropzone = document.querySelector('.photo-upload-zone');
+    if (!dropzone) return;
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.style.borderColor = '#047857';
+        dropzone.style.backgroundColor = 'rgba(5, 150, 105, 0.12)';
+      }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.style.borderColor = '#059669';
+        dropzone.style.backgroundColor = 'rgba(5, 150, 105, 0.04)';
+      }, false);
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      this.processFiles(files);
+    }, false);
+  }
 
   handleFileUpload(event) {
     const files = event.target.files;
+    this.processFiles(files);
+    event.target.value = '';
+  }
+
+  processFiles(files) {
     if (!files || files.length === 0) return;
 
     let loadedCount = 0;
-    Array.from(files).forEach(file => {
-      if (!file.type.startsWith('image/')) return;
+    const validFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+
+    if (validFiles.length === 0) {
+      this.showToast('Please select valid image files (JPG, PNG, WEBP)');
+      return;
+    }
+
+    validFiles.forEach(file => {
       const reader = new FileReader();
       reader.onload = (e) => {
         this.newListingPhotos.push(e.target.result);
         loadedCount++;
-        if (loadedCount === files.length) {
+        if (loadedCount === validFiles.length) {
           this.renderPostPhotoPreviews();
-          this.showToast(`📸 ${files.length} room photos uploaded successfully!`);
+          this.showToast(`📸 ${validFiles.length} photo(s) added! You can scroll them below.`);
+          
+          // Auto-scroll to newly uploaded photos in modal
+          setTimeout(() => {
+            const previewEl = document.getElementById('post-photo-previews');
+            if (previewEl) {
+              previewEl.scrollLeft = previewEl.scrollWidth;
+            }
+          }, 100);
         }
       };
       reader.readAsDataURL(file);
     });
-
-    event.target.value = '';
   }
 
   removePostPhoto(index) {
     this.newListingPhotos.splice(index, 1);
     this.renderPostPhotoPreviews();
+    this.showToast('Photo removed');
   }
 
   renderPostPhotoPreviews() {
@@ -449,17 +503,18 @@ class NestMateKeralaApp {
 
     if (this.newListingPhotos.length === 0) {
       container.innerHTML = `
-        <div style="grid-column: 1 / -1; padding: 12px; text-align: center; color: var(--text-muted); font-size: 0.8rem; background: var(--bg-surface); border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
-          No photos added yet. Click above to upload real pictures of your room/flat.
+        <div style="flex: 1; padding: 14px; text-align: center; color: var(--text-muted); font-size: 0.85rem; background: var(--bg-surface); border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
+          No photos uploaded yet. Click above or drag & drop real photos here.
         </div>
       `;
       return;
     }
 
     container.innerHTML = this.newListingPhotos.map((img, idx) => `
-      <div class="photo-thumb">
+      <div class="photo-thumb" title="Photo ${idx + 1}">
         <img src="${img}" alt="Room Photo ${idx + 1}">
-        <button type="button" class="photo-thumb-remove" onclick="app.removePostPhoto(${idx})">&times;</button>
+        <span class="photo-thumb-badge">${idx === 0 ? 'Cover Photo' : '#' + (idx + 1)}</span>
+        <button type="button" class="photo-thumb-remove" onclick="app.removePostPhoto(${idx})" title="Delete photo">&times;</button>
       </div>
     `).join('');
   }
@@ -496,7 +551,7 @@ class NestMateKeralaApp {
   }
 
   /* ==========================================================================
-     Promotion & WhatsApp Sharing
+     Photo & Listing Sharing Features
      ========================================================================== */
 
   shareAppOnWhatsApp() {
@@ -516,16 +571,32 @@ class NestMateKeralaApp {
     if (!listing) return;
 
     const shareUrl = `${window.location.origin}${window.location.pathname}?room=${listing.id}`;
+    const photoCount = listing.images ? listing.images.length : 0;
     const msg = `🏡 *Room / Roommate Available in ${listing.location}!*\n` +
       `📍 *Address:* ${listing.address}\n` +
       `💰 *Rent Split:* ₹${listing.rentSplit.toLocaleString('en-IN')}/month\n` +
       `👥 *Roommates Needed:* ${listing.roommatesNeeded}\n` +
+      `📸 *Photos Attached:* ${photoCount} high-res photos available\n` +
       `🚭 *Habits:* ${listing.smokingRule === 'no' ? 'Non-Smoker' : 'Balcony smoking ok'} | ${listing.drinkingRule === 'no' ? 'Non-Drinker' : 'Social ok'}\n` +
       `📞 *Contact:* ${listing.host ? listing.host.phone : 'Check listing'}\n\n` +
-      `👉 *View Photos, Google Map & Details:* ${shareUrl}`;
+      `👉 *View Full Photo Gallery & Google Map:* ${shareUrl}`;
 
     const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, '_blank');
+  }
+
+  downloadCurrentPhoto() {
+    if (!this.detailActiveListing || !this.detailActiveListing.images) return;
+    const imgData = this.detailActiveListing.images[this.detailActivePhotoIdx];
+    if (!imgData) return;
+
+    const a = document.createElement('a');
+    a.href = imgData;
+    a.download = `nestmate-room-${this.detailActiveListing.id}-photo-${this.detailActivePhotoIdx + 1}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    this.showToast('📥 Photo downloaded to your device!');
   }
 
   copyListingShareText(listingId) {
@@ -533,8 +604,67 @@ class NestMateKeralaApp {
     if (!listing) return;
 
     const shareUrl = `${window.location.origin}${window.location.pathname}?room=${listing.id}`;
-    const text = `🏡 Room Available in ${listing.location} (Kerala)\nRent: ₹${listing.rentSplit.toLocaleString('en-IN')}/month | Roommates needed: ${listing.roommatesNeeded}\nAddress: ${listing.address}\nView full photos & Google Map: ${shareUrl}`;
-    this.copyToClipboard(text, '📋 Room details & link copied! You can now paste in WhatsApp groups.');
+    const text = `🏡 Room Available in ${listing.location} (Kerala)\nRent: ₹${listing.rentSplit.toLocaleString('en-IN')}/month | Roommates needed: ${listing.roommatesNeeded}\nAddress: ${listing.address}\nView full photo gallery & Google Map: ${shareUrl}`;
+    this.copyToClipboard(text, '📋 Room details & gallery link copied! Ready to paste in WhatsApp.');
+  }
+
+  /* Card level photo flip */
+  nextCardPhoto(listingId, event) {
+    if (event) event.stopPropagation();
+    const listing = this.listings.find(l => l.id === listingId);
+    if (!listing || !listing.images || listing.images.length <= 1) return;
+
+    const currentIdx = this.cardPhotoIndices[listingId] || 0;
+    const nextIdx = (currentIdx + 1) % listing.images.length;
+    this.cardPhotoIndices[listingId] = nextIdx;
+
+    const cardImg = document.getElementById(`card-img-${listingId}`);
+    const badge = document.getElementById(`card-photo-counter-${listingId}`);
+    if (cardImg) cardImg.src = listing.images[nextIdx];
+    if (badge) badge.textContent = `📷 ${nextIdx + 1}/${listing.images.length}`;
+  }
+
+  prevCardPhoto(listingId, event) {
+    if (event) event.stopPropagation();
+    const listing = this.listings.find(l => l.id === listingId);
+    if (!listing || !listing.images || listing.images.length <= 1) return;
+
+    const currentIdx = this.cardPhotoIndices[listingId] || 0;
+    const prevIdx = (currentIdx - 1 + listing.images.length) % listing.images.length;
+    this.cardPhotoIndices[listingId] = prevIdx;
+
+    const cardImg = document.getElementById(`card-img-${listingId}`);
+    const badge = document.getElementById(`card-photo-counter-${listingId}`);
+    if (cardImg) cardImg.src = listing.images[prevIdx];
+    if (badge) badge.textContent = `📷 ${prevIdx + 1}/${listing.images.length}`;
+  }
+
+  /* Detail Modal Photo Switching */
+  setDetailActivePhoto(idx) {
+    if (!this.detailActiveListing || !this.detailActiveListing.images) return;
+    const total = this.detailActiveListing.images.length;
+    if (total === 0) return;
+
+    this.detailActivePhotoIdx = (idx + total) % total;
+    const imgEl = document.getElementById('main-carousel-img');
+    const badgeEl = document.getElementById('carousel-counter-badge');
+
+    if (imgEl) {
+      imgEl.style.opacity = '0.3';
+      setTimeout(() => {
+        imgEl.src = this.detailActiveListing.images[this.detailActivePhotoIdx];
+        imgEl.style.opacity = '1';
+      }, 150);
+    }
+
+    if (badgeEl) {
+      badgeEl.textContent = `📷 Photo ${this.detailActivePhotoIdx + 1} of ${total}`;
+    }
+
+    // Update active thumb outline
+    document.querySelectorAll('.detail-thumb-item').forEach((el, i) => {
+      el.classList.toggle('active', i === this.detailActivePhotoIdx);
+    });
   }
 
   /* ==========================================================================
@@ -777,7 +907,7 @@ class NestMateKeralaApp {
             Start Fresh: No rooms posted yet in Kerala!
           </h3>
           <p style="color: var(--text-muted); max-width: 540px; margin: 0 auto 24px; font-size: 0.95rem; line-height: 1.6;">
-            Be the very first to post your room in Kakkanad Infopark, Technopark Trivandrum, Cyberpark Calicut, or anywhere in Kerala. You can upload real photos and share directly to WhatsApp!
+            Be the very first to post your room in Kakkanad Infopark, Technopark Trivandrum, Cyberpark Calicut, or anywhere in Kerala. You can upload real photos, scroll them, and share directly to WhatsApp!
           </p>
           <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
             <button class="btn btn-primary btn-lg" onclick="app.openPostRoomModal()">
@@ -799,7 +929,9 @@ class NestMateKeralaApp {
     const isFav = this.favorites.includes(item.id);
     const host = item.host;
     const match = item.matchData;
-    const firstImg = item.images && item.images.length > 0 ? item.images[0] : KERALA_ROOM_SVG;
+    const images = item.images && item.images.length > 0 ? item.images : [KERALA_ROOM_SVG];
+    const currentIdx = this.cardPhotoIndices[item.id] || 0;
+    const currentImg = images[currentIdx] || images[0];
 
     const smokeTag = item.smokingRule === 'no' 
       ? '<span class="life-chip match-good">🚭 Non-Smoker</span>' 
@@ -813,11 +945,18 @@ class NestMateKeralaApp {
       ? '<span class="life-chip">💻 WFH Friendly</span>'
       : '<span class="life-chip">💼 Day Shift</span>';
 
+    const showArrows = images.length > 1;
+
     return `
       <div class="listing-card" id="card-${item.id}">
         <div class="card-media">
-          <img src="${firstImg}" class="card-img" alt="${item.title}" onerror="this.src='${KERALA_ROOM_SVG}'">
+          <img src="${currentImg}" id="card-img-${item.id}" class="card-img" alt="${item.title}" onerror="this.src='${KERALA_ROOM_SVG}'">
           
+          ${showArrows ? `
+            <button class="card-nav-prev" onclick="app.prevCardPhoto('${item.id}', event)" title="Previous photo">&lsaquo;</button>
+            <button class="card-nav-next" onclick="app.nextCardPhoto('${item.id}', event)" title="Next photo">&rsaquo;</button>
+          ` : ''}
+
           <div class="card-badges-top">
             <div class="match-badge ${match.tier}">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
@@ -829,7 +968,7 @@ class NestMateKeralaApp {
           </div>
 
           <div class="card-badges-bottom">
-            <span class="pill-badge">📷 ${item.images ? item.images.length : 0} Photos</span>
+            <span class="pill-badge" id="card-photo-counter-${item.id}">📷 ${currentIdx + 1}/${images.length} Photos</span>
             <span class="pill-badge">🚪 ${item.roomType}</span>
           </div>
         </div>
@@ -874,9 +1013,9 @@ class NestMateKeralaApp {
 
             <div class="card-actions">
               <button class="btn btn-outline btn-sm" onclick="app.openListingDetail('${item.id}')">
-                Details & Map
+                View & Map
               </button>
-              <button class="btn btn-whatsapp btn-sm" onclick="app.shareListingOnWhatsApp('${item.id}')" title="Share to WhatsApp">
+              <button class="btn btn-whatsapp btn-sm" onclick="app.shareListingOnWhatsApp('${item.id}')" title="Share Photos to WhatsApp">
                 Share
               </button>
             </div>
@@ -902,12 +1041,15 @@ class NestMateKeralaApp {
   }
 
   /* ==========================================================================
-     Listing Details Modal (With Direct Google Maps Embed)
+     Listing Details Modal (With Interactive Photo Carousel & Sharing Toolbar)
      ========================================================================== */
 
   openListingDetail(id) {
     const listing = this.listings.find(l => l.id === id);
     if (!listing) return;
+
+    this.detailActiveListing = listing;
+    this.detailActivePhotoIdx = 0;
 
     const host = this.users.find(u => u.id === listing.hostId) || {
       name: listing.hostName || "Host in Kerala",
@@ -925,12 +1067,17 @@ class NestMateKeralaApp {
     if (!bodyEl) return;
 
     const images = listing.images && listing.images.length > 0 ? listing.images : [KERALA_ROOM_SVG];
-    const galleryThumbsHTML = images.map((img) => `
-      <img src="${img}" onclick="document.getElementById('main-detail-img').src=this.src" style="cursor: pointer; height: 75px; width: 100%; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+    const totalPhotos = images.length;
+
+    // Build thumbnails strip
+    const thumbsHTML = images.map((img, i) => `
+      <div class="detail-thumb-item ${i === 0 ? 'active' : ''}" onclick="app.setDetailActivePhoto(${i})">
+        <img src="${img}" alt="Thumbnail ${i + 1}">
+      </div>
     `).join('');
 
     const amenitiesHTML = (listing.amenities || []).map(am => `
-      <div style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; padding: 6px 10px; background: var(--bg-surface-alt); border-radius: var(--radius-sm);">
+      <div style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; padding: 8px 12px; background: var(--bg-surface-alt); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
         <span style="color: var(--primary); font-weight: bold;">✔</span> ${am}
       </div>
     `).join('');
@@ -941,21 +1088,55 @@ class NestMateKeralaApp {
     const gmapDirectionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${gmapQuery}`;
 
     bodyEl.innerHTML = `
-      <div style="display: grid; grid-template-columns: 3fr 1fr; gap: 12px; margin-bottom: 24px;">
-        <div style="height: 340px; border-radius: var(--radius-md); overflow: hidden; background: #000;">
-          <img src="${images[0]}" id="main-detail-img" alt="Room Photo" style="width: 100%; height: 100%; object-fit: cover;">
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto;">
-          ${galleryThumbsHTML}
+      <!-- INTERACTIVE PHOTO CAROUSEL -->
+      <div class="detail-photo-carousel">
+        <img src="${images[0]}" id="main-carousel-img" alt="Room Photo">
+
+        ${totalPhotos > 1 ? `
+          <button class="carousel-btn carousel-prev" onclick="app.setDetailActivePhoto(app.detailActivePhotoIdx - 1)" title="Previous photo">&lsaquo;</button>
+          <button class="carousel-btn carousel-next" onclick="app.setDetailActivePhoto(app.detailActivePhotoIdx + 1)" title="Next photo">&rsaquo;</button>
+        ` : ''}
+
+        <div style="position: absolute; bottom: 14px; left: 16px; z-index: 10;">
+          <span class="pill-badge" id="carousel-counter-badge" style="font-size: 0.82rem; padding: 6px 12px;">
+            📷 Photo 1 of ${totalPhotos}
+          </span>
         </div>
       </div>
 
+      <!-- Thumbnails Strip (Scrollable) -->
+      ${totalPhotos > 1 ? `
+        <div class="detail-thumbs-strip">
+          ${thumbsHTML}
+        </div>
+      ` : ''}
+
+      <!-- PHOTO SHARING & ACTION TOOLBAR -->
+      <div class="photo-share-toolbar">
+        <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
+          <span>📸 Share & Save Photos</span>
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal;">(${totalPhotos} uploaded)</span>
+        </div>
+        <div class="photo-share-actions">
+          <button class="btn btn-whatsapp btn-sm" onclick="app.shareListingOnWhatsApp('${listing.id}')" title="Share with photos on WhatsApp">
+            📲 Share on WhatsApp
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="app.downloadCurrentPhoto()" title="Save current photo to your device">
+            📥 Save Photo
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="app.copyListingShareText('${listing.id}')" title="Copy photo link">
+            📋 Copy Link
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Summary -->
       <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
         <div>
           <div style="font-size: 2rem; font-weight: 800; color: var(--primary);">
             ₹${listing.rentSplit.toLocaleString('en-IN')} <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">/ month per person</span>
           </div>
-          <div style="font-size: 0.85rem; color: var(--text-muted);">
+          <div style="font-size: 0.88rem; color: var(--text-muted);">
             Location: <strong>${listing.address}</strong>, ${listing.location}
           </div>
         </div>
@@ -1051,7 +1232,7 @@ class NestMateKeralaApp {
         </div>
       </div>
 
-      <!-- Host Profile, Direct Contact & WhatsApp Share -->
+      <!-- Host Profile & Direct Contact Box -->
       <div class="host-profile-box">
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
           <div style="display: flex; align-items: center; gap: 14px;">
