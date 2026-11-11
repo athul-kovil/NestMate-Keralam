@@ -564,6 +564,190 @@ const AuthAPI = {
 };
 
 // ==============================================================================
+// Listings API & Database Service (REST API + Local Storage Dual Layer)
+// ==============================================================================
+
+const ListingsAPI = {
+  baseUrl: window.location.origin,
+
+  async request(endpoint, options = {}) {
+    try {
+      const res = await fetch(`${this.baseUrl}${endpoint}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options.headers || {})
+        },
+        ...options
+      });
+      const data = await res.json().catch(() => ({}));
+      return { ok: res.ok, status: res.status, data };
+    } catch (err) {
+      return { ok: false, status: 0, error: err.message, offline: true };
+    }
+  },
+
+  // 1. Fetch Listings (default: status = 'ACTIVE' for public discovery, or status = 'all')
+  async fetchListings(query = {}) {
+    const params = new URLSearchParams();
+    if (query.status) params.set('status', query.status);
+    if (query.userId) params.set('userId', query.userId);
+    if (query.id) params.set('id', query.id);
+
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    const apiRes = await this.request(`/api/listings${queryString}`);
+
+    if (apiRes.ok && apiRes.data.listings) {
+      // Sync active listings to local storage cache if fetching public
+      if (!query.userId && (!query.status || query.status === 'ACTIVE')) {
+        Storage.saveListings(apiRes.data.listings);
+      }
+      return apiRes.data.listings;
+    }
+
+    // Fallback: LocalStorage
+    let local = Storage.getListings();
+    if (query.userId) {
+      return local.filter(l => (l.userId === query.userId || l.hostId === query.userId) && l.status !== 'DELETED');
+    }
+    if (query.status && query.status !== 'all') {
+      return local.filter(l => (l.status || 'ACTIVE').toUpperCase() === query.status.toUpperCase());
+    }
+    return local.filter(l => l.status !== 'DELETED');
+  },
+
+  // 2. Publish New Listing
+  async publishListing(listingData) {
+    const apiRes = await this.request('/api/listings', {
+      method: 'POST',
+      body: JSON.stringify(listingData)
+    });
+
+    if (apiRes.ok && apiRes.data.listing) {
+      const saved = apiRes.data.listing;
+      const local = Storage.getListings();
+      const existingIdx = local.findIndex(l => l.id === saved.id);
+      if (existingIdx > -1) {
+        local[existingIdx] = saved;
+      } else {
+        local.unshift(saved);
+      }
+      Storage.saveListings(local);
+      return apiRes.data;
+    } else if (apiRes.status > 0) {
+      throw new Error(apiRes.data.error || 'Failed to publish listing on server.');
+    }
+
+    // Fallback
+    const local = Storage.getListings();
+    const fallbackListing = {
+      ...listingData,
+      id: listingData.id || `room_${Date.now()}`,
+      status: 'ACTIVE',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    local.unshift(fallbackListing);
+    Storage.saveListings(local);
+    return {
+      success: true,
+      message: 'Your room has been published successfully!',
+      listing: fallbackListing
+    };
+  },
+
+  // 3. Update Listing
+  async updateListing(listingData) {
+    const apiRes = await this.request('/api/listings/update', {
+      method: 'POST',
+      body: JSON.stringify(listingData)
+    });
+
+    if (apiRes.ok && apiRes.data.listing) {
+      const updated = apiRes.data.listing;
+      const local = Storage.getListings();
+      const idx = local.findIndex(l => l.id === updated.id);
+      if (idx > -1) local[idx] = updated;
+      Storage.saveListings(local);
+      return apiRes.data;
+    } else if (apiRes.status > 0) {
+      throw new Error(apiRes.data.error || 'Failed to update listing.');
+    }
+
+    // Fallback
+    const local = Storage.getListings();
+    const idx = local.findIndex(l => l.id === listingData.id);
+    if (idx > -1) {
+      Object.assign(local[idx], listingData, { updatedAt: new Date().toISOString() });
+      Storage.saveListings(local);
+      return { success: true, listing: local[idx] };
+    }
+    throw new Error('Listing not found.');
+  },
+
+  // 4. Update Status (ACTIVE, INACTIVE, RENTED, DELETED)
+  async updateStatus(listingId, status, userId) {
+    const apiRes = await this.request('/api/listings/status', {
+      method: 'POST',
+      body: JSON.stringify({ listingId, status, userId })
+    });
+
+    if (apiRes.ok && apiRes.data.listing) {
+      const updated = apiRes.data.listing;
+      const local = Storage.getListings();
+      const idx = local.findIndex(l => l.id === listingId);
+      if (idx > -1) {
+        if (status === 'DELETED') {
+          local.splice(idx, 1);
+        } else {
+          local[idx] = updated;
+        }
+        Storage.saveListings(local);
+      }
+      return apiRes.data;
+    } else if (apiRes.status > 0) {
+      throw new Error(apiRes.data.error || 'Failed to update status.');
+    }
+
+    // Fallback
+    const local = Storage.getListings();
+    const idx = local.findIndex(l => l.id === listingId);
+    if (idx > -1) {
+      if (status === 'DELETED') {
+        local.splice(idx, 1);
+      } else {
+        local[idx].status = status;
+        local[idx].updatedAt = new Date().toISOString();
+      }
+      Storage.saveListings(local);
+      return { success: true, listing: local[idx] };
+    }
+    throw new Error('Listing not found.');
+  },
+
+  // 5. Delete Listing
+  async deleteListing(listingId, userId) {
+    const apiRes = await this.request('/api/listings/delete', {
+      method: 'POST',
+      body: JSON.stringify({ listingId, userId })
+    });
+
+    const local = Storage.getListings();
+    const idx = local.findIndex(l => l.id === listingId);
+    if (idx > -1) {
+      local.splice(idx, 1);
+      Storage.saveListings(local);
+    }
+
+    if (apiRes.ok) {
+      return apiRes.data;
+    } else if (apiRes.status > 0) {
+      throw new Error(apiRes.data.error || 'Failed to delete listing.');
+    }
+    return { success: true, message: 'Listing deleted.' };
+  }
+};
+
+// ==============================================================================
 // Compatibility Calculation Engine (Kerala Context)
 // ==============================================================================
 

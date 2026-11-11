@@ -21,6 +21,7 @@ import uuid
 import secrets
 import hashlib
 import hmac
+import urllib.parse
 import webbrowser
 
 PORT = 8000
@@ -174,8 +175,7 @@ class NestMateHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(200, {"users": safe_users})
 
         if path == "/api/listings":
-            db = load_db()
-            return self.send_json(200, {"listings": db.get("listings", [])})
+            return self.handle_get_listings()
 
         # Static file fallback
         super().do_GET()
@@ -220,9 +220,21 @@ class NestMateHandler(http.server.SimpleHTTPRequestHandler):
         elif path == "/api/user/avatar":
             return self.handle_update_avatar(data)
 
-        # 10. SAVE LISTING
+        # 10. PUBLISH NEW LISTING
         elif path == "/api/listings":
             return self.handle_save_listing(data)
+
+        # 11. UPDATE EXISTING LISTING
+        elif path == "/api/listings/update":
+            return self.handle_update_listing(data)
+
+        # 12. UPDATE LISTING STATUS (ACTIVE, INACTIVE, RENTED, DELETED)
+        elif path == "/api/listings/status":
+            return self.handle_update_listing_status(data)
+
+        # 13. DELETE LISTING
+        elif path == "/api/listings/delete":
+            return self.handle_delete_listing(data)
 
         else:
             self.send_json(404, {"error": "API route not found"})
@@ -240,6 +252,9 @@ class NestMateHandler(http.server.SimpleHTTPRequestHandler):
                     save_db(db)
                     return self.send_json(200, {"success": True, "user": sanitize_user(user)})
             return self.send_json(404, {"error": "User not found"})
+
+        if path == "/api/listings":
+            return self.handle_delete_listing(data)
 
         super().do_GET()
 
@@ -603,13 +618,222 @@ class NestMateHandler(http.server.SimpleHTTPRequestHandler):
             "user": sanitize_user(user)
         })
 
-    def handle_save_listing(self, data):
+    # --------------------------------------------------------------------------
+    # Room Listings Endpoints Implementation
+    # --------------------------------------------------------------------------
+
+    def handle_get_listings(self):
         db = load_db()
         listings = db.get("listings", [])
-        listings.insert(0, data)
+
+        # Parse query parameters
+        params = {}
+        if '?' in self.path:
+            query = self.path.split('?', 1)[1]
+            for pair in query.split('&'):
+                if '=' in pair:
+                    k, v = pair.split('=', 1)
+                    params[k] = urllib.parse.unquote(v)
+
+        listing_id = params.get("id")
+        if listing_id:
+            for item in listings:
+                if item.get("id") == listing_id:
+                    return self.send_json(200, {"listing": item})
+            return self.send_json(404, {"error": "Listing not found"})
+
+        owner_id = params.get("userId")
+        if owner_id:
+            user_listings = [
+                item for item in listings
+                if (item.get("userId") == owner_id or item.get("hostId") == owner_id)
+                and item.get("status") != "DELETED"
+            ]
+            return self.send_json(200, {"listings": user_listings})
+
+        status_filter = params.get("status", "ACTIVE")
+        if status_filter != "all":
+            filtered = [
+                item for item in listings
+                if item.get("status", "ACTIVE").upper() == status_filter.upper()
+            ]
+        else:
+            filtered = [item for item in listings if item.get("status") != "DELETED"]
+
+        return self.send_json(200, {"listings": filtered})
+
+    def handle_save_listing(self, data):
+        title = (data.get("title") or "").strip()
+        location = (data.get("location") or "").strip()
+        rent_split = data.get("rentSplit") or data.get("monthlyRent") or 0
+
+        if not title:
+            return self.send_json(400, {"error": "Room title is required."})
+        if not location:
+            return self.send_json(400, {"error": "Location in Kerala is required."})
+        if not rent_split:
+            return self.send_json(400, {"error": "Monthly rent split is required."})
+
+        db = load_db()
+        listings = db.get("listings", [])
+
+        listing_id = data.get("id") or f"room_{int(time.time() * 1000)}"
+        now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+        # Up to 15 images
+        images = data.get("images", [])
+        if not isinstance(images, list):
+            images = [images] if images else []
+        images = images[:15]
+        cover_image = data.get("coverImage") or (images[0] if images else "")
+
+        new_listing = {
+            "id": listing_id,
+            "userId": data.get("userId") or data.get("hostId", ""),
+            "hostId": data.get("hostId") or data.get("userId", ""),
+            "hostName": data.get("hostName", "Host in Kerala"),
+            "hostAvatar": data.get("hostAvatar", ""),
+            "hostEmail": data.get("hostEmail", ""),
+            "hostPhone": data.get("hostPhone", ""),
+            "hostOccupation": data.get("hostOccupation", "Working Professional"),
+            "title": title,
+            "description": (data.get("description") or "").strip(),
+            "propertyType": data.get("propertyType", "Apartment"),
+            "roomType": data.get("roomType", "Single Room"),
+            "location": location,
+            "neighborhood": location.split(',')[0].strip(),
+            "address": (data.get("address") or location).strip(),
+            "city": data.get("city", "Kerala"),
+            "rentSplit": float(rent_split),
+            "monthlyRent": float(rent_split),
+            "deposit": float(data.get("deposit") or (float(rent_split) * 2)),
+            "billsIncluded": bool(data.get("billsIncluded", True)),
+            "roommatesNeeded": int(data.get("roommatesNeeded") or data.get("availableSpaces") or 1),
+            "availableSpaces": int(data.get("availableSpaces") or data.get("roommatesNeeded") or 1),
+            "genderPreference": data.get("genderPreference", "any"),
+            "availableFrom": data.get("availableFrom", "Immediate"),
+            "smokingRule": data.get("smokingRule", "no"),
+            "drinkingRule": data.get("drinkingRule", "social"),
+            "workingShiftPreference": data.get("workingShiftPreference", "any"),
+            "cleanlinessExpectation": data.get("cleanlinessExpectation", "high"),
+            "amenities": data.get("amenities") or ["High-Speed WiFi", "Attached Bathroom"],
+            "coverImage": cover_image,
+            "images": images,
+            "status": "ACTIVE",
+            "createdAt": now_iso,
+            "updatedAt": now_iso
+        }
+
+        listings.insert(0, new_listing)
         db["listings"] = listings
         save_db(db)
-        return self.send_json(201, {"success": True, "listing": data})
+
+        return self.send_json(201, {
+            "success": True,
+            "message": "Your room has been published successfully!",
+            "listing": new_listing
+        })
+
+    def handle_update_listing(self, data):
+        listing_id = data.get("id")
+        user_id = data.get("userId") or data.get("hostId")
+
+        if not listing_id:
+            return self.send_json(400, {"error": "Listing ID is required."})
+
+        db = load_db()
+        listings = db.get("listings", [])
+        listing = next((l for l in listings if l.get("id") == listing_id), None)
+
+        if not listing:
+            return self.send_json(404, {"error": "Listing not found."})
+
+        for field in ["title", "description", "roomType", "location", "address", "genderPreference", "availableFrom", "smokingRule", "drinkingRule", "workingShiftPreference"]:
+            if field in data and data[field] is not None:
+                listing[field] = data[field]
+
+        if "rentSplit" in data and data["rentSplit"]:
+            val = float(data["rentSplit"])
+            listing["rentSplit"] = val
+            listing["monthlyRent"] = val
+
+        if "deposit" in data and data["deposit"]:
+            listing["deposit"] = float(data["deposit"])
+
+        if "roommatesNeeded" in data or "availableSpaces" in data:
+            spaces = int(data.get("roommatesNeeded") or data.get("availableSpaces") or 1)
+            listing["roommatesNeeded"] = spaces
+            listing["availableSpaces"] = spaces
+
+        if "amenities" in data and isinstance(data["amenities"], list):
+            listing["amenities"] = data["amenities"]
+
+        if "images" in data and isinstance(data["images"], list):
+            listing["images"] = data["images"][:15]
+
+        if "coverImage" in data and data["coverImage"]:
+            listing["coverImage"] = data["coverImage"]
+        elif listing.get("images"):
+            listing["coverImage"] = listing["images"][0]
+
+        listing["updatedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        save_db(db)
+
+        return self.send_json(200, {
+            "success": True,
+            "message": "Room listing updated successfully!",
+            "listing": listing
+        })
+
+    def handle_update_listing_status(self, data):
+        listing_id = data.get("listingId") or data.get("id")
+        new_status = (data.get("status") or "").upper()
+
+        if not listing_id:
+            return self.send_json(400, {"error": "Listing ID is required."})
+
+        valid_statuses = ["ACTIVE", "INACTIVE", "RENTED", "DELETED"]
+        if new_status not in valid_statuses:
+            return self.send_json(400, {"error": f"Invalid status. Must be one of: {', '.join(valid_statuses)}"})
+
+        db = load_db()
+        listings = db.get("listings", [])
+        listing = next((l for l in listings if l.get("id") == listing_id), None)
+
+        if not listing:
+            return self.send_json(404, {"error": "Listing not found."})
+
+        listing["status"] = new_status
+        listing["updatedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        save_db(db)
+
+        status_messages = {
+            "ACTIVE": "Listing is now ACTIVE and live in Available Properties.",
+            "INACTIVE": "Listing has been PAUSED (hidden from public view).",
+            "RENTED": "Listing marked as RENTED.",
+            "DELETED": "Listing deleted successfully."
+        }
+
+        return self.send_json(200, {
+            "success": True,
+            "message": status_messages.get(new_status, f"Status updated to {new_status}"),
+            "listing": listing
+        })
+
+    def handle_delete_listing(self, data):
+        listing_id = data.get("listingId") or data.get("id")
+        if not listing_id:
+            return self.send_json(400, {"error": "Listing ID is required."})
+
+        db = load_db()
+        listings = db.get("listings", [])
+        db["listings"] = [l for l in listings if l.get("id") != listing_id]
+        save_db(db)
+
+        return self.send_json(200, {
+            "success": True,
+            "message": "Listing deleted permanently from database!"
+        })
 
 # ==============================================================================
 # Server Runner

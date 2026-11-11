@@ -30,6 +30,11 @@ class NestMateKeralaApp {
 
     this.activeConversationId = null;
     this.newListingPhotos = [];
+    this.coverPhotoIndex = 0;
+    this.editingListingId = null;
+    this.lightboxPhotos = [];
+    this.lightboxActiveIdx = 0;
+    this.isLoadingListings = false;
     
     // Modern Auth & Profile State
     this.pendingVerificationEmail = null;
@@ -54,6 +59,7 @@ class NestMateKeralaApp {
     this.renderUnreadCount();
     this.renderPostPhotoPreviews();
     this.renderListings();
+    this.loadListingsFromBackend();
 
     // Default view: If user is not logged in, show dedicated Login Page first!
     if (!this.currentUser) {
@@ -87,13 +93,23 @@ class NestMateKeralaApp {
       }
     });
 
-    // Escape key closes modals
+    // Escape key closes modals, Arrow keys navigate lightbox
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         document.querySelectorAll('.modal-backdrop.open').forEach(m => {
           m.classList.remove('open');
         });
+        const lb = document.getElementById('modal-image-lightbox');
+        if (lb) lb.classList.remove('open');
         document.body.style.overflow = '';
+      }
+      if (e.key === 'ArrowLeft' && this.lightboxPhotos.length > 0) {
+        const lb = document.getElementById('modal-image-lightbox');
+        if (lb && lb.classList.contains('open')) this.prevLightboxPhoto();
+      }
+      if (e.key === 'ArrowRight' && this.lightboxPhotos.length > 0) {
+        const lb = document.getElementById('modal-image-lightbox');
+        if (lb && lb.classList.contains('open')) this.nextLightboxPhoto();
       }
     });
 
@@ -1101,6 +1117,39 @@ class NestMateKeralaApp {
     }, false);
   }
 
+  async loadListingsFromBackend() {
+    const container = document.getElementById('listings-container');
+    if (container && (!this.listings || this.listings.length === 0)) {
+      this.renderListingsSkeleton();
+    }
+    try {
+      const serverListings = await ListingsAPI.fetchListings('all');
+      if (serverListings && serverListings.length > 0) {
+        this.listings = serverListings;
+        Storage.saveListings(this.listings);
+      }
+    } catch (err) {
+      console.warn('Backend listings sync error:', err);
+    } finally {
+      this.renderListings();
+    }
+  }
+
+  renderListingsSkeleton() {
+    const container = document.getElementById('listings-container');
+    if (!container) return;
+    container.innerHTML = Array(6).fill(0).map(() => `
+      <div class="skeleton-card">
+        <div class="skeleton-media"></div>
+        <div class="skeleton-body">
+          <div class="skeleton-line title"></div>
+          <div class="skeleton-line medium"></div>
+          <div class="skeleton-line short"></div>
+        </div>
+      </div>
+    `).join('');
+  }
+
   handleFileUpload(event) {
     const files = event.target.files;
     this.processFiles(files);
@@ -1110,24 +1159,39 @@ class NestMateKeralaApp {
   processFiles(files) {
     if (!files || files.length === 0) return;
 
-    let loadedCount = 0;
     const validFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
-
     if (validFiles.length === 0) {
       this.showToast('Please select valid image files (JPG, PNG, WEBP)');
       return;
     }
 
-    validFiles.forEach(file => {
+    const maxAllowed = 15;
+    const remainingSlots = maxAllowed - this.newListingPhotos.length;
+    if (remainingSlots <= 0) {
+      this.showToast(`⚠️ You have already uploaded the maximum limit of ${maxAllowed} photos.`);
+      return;
+    }
+
+    const filesToLoad = validFiles.slice(0, remainingSlots);
+    if (validFiles.length > remainingSlots) {
+      this.showToast(`📸 Notice: Adding only ${remainingSlots} photo(s) to stay within the 15-photo limit.`);
+    }
+
+    let loadedCount = 0;
+    filesToLoad.forEach(file => {
+      if (file.size > 8 * 1024 * 1024) {
+        this.showToast(`⚠️ "${file.name}" exceeds 8MB and was skipped.`);
+        loadedCount++;
+        return;
+      }
       const reader = new FileReader();
       reader.onload = (e) => {
         this.newListingPhotos.push(e.target.result);
         loadedCount++;
-        if (loadedCount === validFiles.length) {
+        if (loadedCount === filesToLoad.length) {
           this.renderPostPhotoPreviews();
-          this.showToast(`📸 ${validFiles.length} photo(s) added! You can scroll them below.`);
+          this.showToast(`📸 ${this.newListingPhotos.length} / ${maxAllowed} photo(s) uploaded! You can pick your cover image.`);
           
-          // Auto-scroll to newly uploaded photos in modal
           setTimeout(() => {
             const previewEl = document.getElementById('post-photo-previews');
             if (previewEl) {
@@ -1140,32 +1204,63 @@ class NestMateKeralaApp {
     });
   }
 
+  setCoverPhoto(index) {
+    if (index >= 0 && index < this.newListingPhotos.length) {
+      this.coverPhotoIndex = index;
+      this.renderPostPhotoPreviews();
+      this.showToast(`★ Photo #${index + 1} selected as the main cover photo!`);
+    }
+  }
+
   removePostPhoto(index) {
     this.newListingPhotos.splice(index, 1);
+    if (this.coverPhotoIndex === index) {
+      this.coverPhotoIndex = 0;
+    } else if (this.coverPhotoIndex > index) {
+      this.coverPhotoIndex--;
+    }
     this.renderPostPhotoPreviews();
     this.showToast('Photo removed');
   }
 
   renderPostPhotoPreviews() {
     const container = document.getElementById('post-photo-previews');
+    const countBadge = document.getElementById('post-photo-count');
+    if (countBadge) {
+      countBadge.textContent = this.newListingPhotos.length;
+    }
+
     if (!container) return;
 
     if (this.newListingPhotos.length === 0) {
+      this.coverPhotoIndex = 0;
       container.innerHTML = `
         <div style="flex: 1; padding: 14px; text-align: center; color: var(--text-muted); font-size: 0.85rem; background: var(--bg-surface); border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
-          No photos uploaded yet. Click above or drag & drop real photos here.
+          No photos uploaded yet. Click above or drag & drop real photos here (Up to 15 photos).
         </div>
       `;
       return;
     }
 
-    container.innerHTML = this.newListingPhotos.map((img, idx) => `
-      <div class="photo-thumb" title="Photo ${idx + 1}">
-        <img src="${img}" alt="Room Photo ${idx + 1}">
-        <span class="photo-thumb-badge">${idx === 0 ? 'Cover Photo' : '#' + (idx + 1)}</span>
-        <button type="button" class="photo-thumb-remove" onclick="app.removePostPhoto(${idx})" title="Delete photo">&times;</button>
-      </div>
-    `).join('');
+    if (this.coverPhotoIndex >= this.newListingPhotos.length) {
+      this.coverPhotoIndex = 0;
+    }
+
+    container.innerHTML = this.newListingPhotos.map((img, idx) => {
+      const isCover = idx === this.coverPhotoIndex;
+      return `
+        <div class="photo-thumb ${isCover ? 'is-cover' : ''}" title="Photo ${idx + 1}">
+          <img src="${img}" alt="Room Photo ${idx + 1}">
+          ${isCover ? `
+            <span class="photo-thumb-cover-badge">★ Cover Photo</span>
+          ` : `
+            <span class="photo-thumb-badge">#${idx + 1}</span>
+            <button type="button" class="photo-thumb-set-cover-btn" onclick="app.setCoverPhoto(${idx})" title="Set as main cover picture">★ Set Cover</button>
+          `}
+          <button type="button" class="photo-thumb-remove" onclick="app.removePostPhoto(${idx})" title="Delete photo">&times;</button>
+        </div>
+      `;
+    }).join('');
   }
 
   /* ==========================================================================
@@ -1257,41 +1352,62 @@ class NestMateKeralaApp {
     this.copyToClipboard(text, '📋 Room details & gallery link copied! Ready to paste in WhatsApp.');
   }
 
-  /* Card level photo flip */
+  /* Card level photo flip with Carousel Dots */
   nextCardPhoto(listingId, event) {
     if (event) event.stopPropagation();
     const listing = this.listings.find(l => l.id === listingId);
-    if (!listing || !listing.images || listing.images.length <= 1) return;
+    if (!listing) return;
+    const images = (listing.images && listing.images.length > 0) ? listing.images : (listing.coverImage ? [listing.coverImage] : [KERALA_ROOM_SVG]);
+    if (images.length <= 1) return;
 
     const currentIdx = this.cardPhotoIndices[listingId] || 0;
-    const nextIdx = (currentIdx + 1) % listing.images.length;
+    const nextIdx = (currentIdx + 1) % images.length;
     this.cardPhotoIndices[listingId] = nextIdx;
 
     const cardImg = document.getElementById(`card-img-${listingId}`);
     const badge = document.getElementById(`card-photo-counter-${listingId}`);
-    if (cardImg) cardImg.src = listing.images[nextIdx];
-    if (badge) badge.textContent = `📷 ${nextIdx + 1}/${listing.images.length}`;
+    const dotsContainer = document.getElementById(`card-dots-${listingId}`);
+
+    if (cardImg) cardImg.src = images[nextIdx];
+    if (badge) badge.textContent = `📷 ${nextIdx + 1}/${images.length}`;
+    if (dotsContainer) {
+      dotsContainer.querySelectorAll('.card-dot').forEach((dot, dIdx) => {
+        dot.classList.toggle('active', dIdx === (nextIdx % 5));
+      });
+    }
   }
 
   prevCardPhoto(listingId, event) {
     if (event) event.stopPropagation();
     const listing = this.listings.find(l => l.id === listingId);
-    if (!listing || !listing.images || listing.images.length <= 1) return;
+    if (!listing) return;
+    const images = (listing.images && listing.images.length > 0) ? listing.images : (listing.coverImage ? [listing.coverImage] : [KERALA_ROOM_SVG]);
+    if (images.length <= 1) return;
 
     const currentIdx = this.cardPhotoIndices[listingId] || 0;
-    const prevIdx = (currentIdx - 1 + listing.images.length) % listing.images.length;
+    const prevIdx = (currentIdx - 1 + images.length) % images.length;
     this.cardPhotoIndices[listingId] = prevIdx;
 
     const cardImg = document.getElementById(`card-img-${listingId}`);
     const badge = document.getElementById(`card-photo-counter-${listingId}`);
-    if (cardImg) cardImg.src = listing.images[prevIdx];
-    if (badge) badge.textContent = `📷 ${prevIdx + 1}/${listing.images.length}`;
+    const dotsContainer = document.getElementById(`card-dots-${listingId}`);
+
+    if (cardImg) cardImg.src = images[prevIdx];
+    if (badge) badge.textContent = `📷 ${prevIdx + 1}/${images.length}`;
+    if (dotsContainer) {
+      dotsContainer.querySelectorAll('.card-dot').forEach((dot, dIdx) => {
+        dot.classList.toggle('active', dIdx === (prevIdx % 5));
+      });
+    }
   }
 
   /* Detail Modal Photo Switching */
   setDetailActivePhoto(idx) {
-    if (!this.detailActiveListing || !this.detailActiveListing.images) return;
-    const total = this.detailActiveListing.images.length;
+    if (!this.detailActiveListing) return;
+    const images = (this.detailActiveListing.images && this.detailActiveListing.images.length > 0) 
+      ? this.detailActiveListing.images 
+      : (this.detailActiveListing.coverImage ? [this.detailActiveListing.coverImage] : [KERALA_ROOM_SVG]);
+    const total = images.length;
     if (total === 0) return;
 
     this.detailActivePhotoIdx = (idx + total) % total;
@@ -1301,9 +1417,9 @@ class NestMateKeralaApp {
     if (imgEl) {
       imgEl.style.opacity = '0.3';
       setTimeout(() => {
-        imgEl.src = this.detailActiveListing.images[this.detailActivePhotoIdx];
+        imgEl.src = images[this.detailActivePhotoIdx];
         imgEl.style.opacity = '1';
-      }, 150);
+      }, 120);
     }
 
     if (badgeEl) {
@@ -1314,6 +1430,55 @@ class NestMateKeralaApp {
     document.querySelectorAll('.detail-thumb-item').forEach((el, i) => {
       el.classList.toggle('active', i === this.detailActivePhotoIdx);
     });
+  }
+
+  /* Fullscreen Lightbox Photo Viewer */
+  openLightbox(photos, startIndex = 0) {
+    if (!photos || photos.length === 0) return;
+    this.lightboxPhotos = photos;
+    this.lightboxActiveIdx = (startIndex >= 0 && startIndex < photos.length) ? startIndex : 0;
+    this.renderLightbox();
+    const modal = document.getElementById('modal-image-lightbox');
+    if (modal) modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  closeLightbox() {
+    const modal = document.getElementById('modal-image-lightbox');
+    if (modal) modal.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  prevLightboxPhoto() {
+    if (!this.lightboxPhotos || this.lightboxPhotos.length <= 1) return;
+    this.lightboxActiveIdx = (this.lightboxActiveIdx - 1 + this.lightboxPhotos.length) % this.lightboxPhotos.length;
+    this.renderLightbox();
+  }
+
+  nextLightboxPhoto() {
+    if (!this.lightboxPhotos || this.lightboxPhotos.length <= 1) return;
+    this.lightboxActiveIdx = (this.lightboxActiveIdx + 1) % this.lightboxPhotos.length;
+    this.renderLightbox();
+  }
+
+  renderLightbox() {
+    const img = document.getElementById('lightbox-active-img');
+    const counter = document.getElementById('lightbox-counter');
+    const filmstrip = document.getElementById('lightbox-filmstrip');
+
+    if (img && this.lightboxPhotos[this.lightboxActiveIdx]) {
+      img.src = this.lightboxPhotos[this.lightboxActiveIdx];
+    }
+    if (counter) {
+      counter.textContent = `Photo ${this.lightboxActiveIdx + 1} of ${this.lightboxPhotos.length}`;
+    }
+    if (filmstrip) {
+      filmstrip.innerHTML = this.lightboxPhotos.map((p, idx) => `
+        <div class="lightbox-thumb ${idx === this.lightboxActiveIdx ? 'active' : ''}" onclick="app.openLightbox(app.lightboxPhotos, ${idx})">
+          <img src="${p}" alt="Photo ${idx + 1}">
+        </div>
+      `).join('');
+    }
   }
 
   /* ==========================================================================
@@ -1469,13 +1634,19 @@ class NestMateKeralaApp {
       };
     });
 
-    if (this.activeTab === 'private') {
-      result = result.filter(item => item.roomType.toLowerCase().includes('private'));
-    } else if (this.activeTab === 'shared') {
-      result = result.filter(item => item.roomType.toLowerCase().includes('shared'));
-    } else if (this.activeTab === 'my-listings') {
+    // Tab-based visibility filtering
+    if (this.activeTab === 'my-listings') {
       if (!this.currentUser) return [];
-      result = result.filter(item => item.hostId === this.currentUser.id);
+      result = result.filter(item => item.hostId === this.currentUser.id && item.status !== 'DELETED');
+    } else {
+      // Available Properties, Private, Shared: Only show ACTIVE listings
+      result = result.filter(item => item.status !== 'INACTIVE' && item.status !== 'RENTED' && item.status !== 'DELETED');
+
+      if (this.activeTab === 'private') {
+        result = result.filter(item => (item.roomType || '').toLowerCase().includes('private'));
+      } else if (this.activeTab === 'shared') {
+        result = result.filter(item => (item.roomType || '').toLowerCase().includes('shared'));
+      }
     }
 
     if (this.searchQuery) {
@@ -1519,6 +1690,7 @@ class NestMateKeralaApp {
       result = result.filter(item => item.rentSplit <= this.advancedFilters.maxRent);
     }
 
+    // Sorting
     if (this.sortMode === 'match_desc') {
       result.sort((a, b) => b.matchData.score - a.matchData.score);
     } else if (this.sortMode === 'price_asc') {
@@ -1526,42 +1698,72 @@ class NestMateKeralaApp {
     } else if (this.sortMode === 'price_desc') {
       result.sort((a, b) => b.rentSplit - a.rentSplit);
     } else if (this.sortMode === 'newest') {
-      result.reverse();
+      result.sort((a, b) => {
+        const timeA = a.createdDate ? new Date(a.createdDate).getTime() : 0;
+        const timeB = b.createdDate ? new Date(b.createdDate).getTime() : 0;
+        return timeB - timeA;
+      });
     }
 
     return result;
   }
 
+  updateTabCounts() {
+    const activeListings = this.listings.filter(l => l.status !== 'INACTIVE' && l.status !== 'RENTED' && l.status !== 'DELETED');
+    const countAll = document.getElementById('count-all');
+    const countPrivate = document.getElementById('count-private');
+    const countShared = document.getElementById('count-shared');
+    const countMy = document.getElementById('count-my-listings');
+
+    if (countAll) countAll.textContent = activeListings.length;
+    if (countPrivate) countPrivate.textContent = activeListings.filter(l => (l.roomType || '').toLowerCase().includes('private')).length;
+    if (countShared) countShared.textContent = activeListings.filter(l => (l.roomType || '').toLowerCase().includes('shared')).length;
+    if (countMy) {
+      if (this.currentUser) {
+        countMy.textContent = this.listings.filter(l => l.hostId === this.currentUser.id && l.status !== 'DELETED').length;
+      } else {
+        countMy.textContent = '0';
+      }
+    }
+  }
+
   /* Render Listings Grid */
   renderListings() {
+    this.updateTabCounts();
     const container = document.getElementById('listings-container');
     if (!container) return;
 
     const list = this.getProcessedListings();
-
-    const countAll = document.getElementById('count-all');
-    if (countAll) countAll.textContent = this.listings.length;
     
     const countText = document.getElementById('results-count-text');
     if (countText) {
-      countText.innerHTML = `Showing <span>${list.length} ${list.length === 1 ? 'room' : 'rooms'}</span> in Kerala`;
+      const tabName = this.activeTab === 'my-listings' ? 'my listings' : (this.activeTab === 'private' ? 'private rooms' : (this.activeTab === 'shared' ? 'shared rooms' : 'available properties'));
+      countText.innerHTML = `Showing <span>${list.length} ${list.length === 1 ? 'room' : 'rooms'}</span> in ${tabName}`;
     }
 
-    // Fresh Empty State
+    // Modern Airbnb Empty State
     if (list.length === 0) {
+      const isMyListingsTab = this.activeTab === 'my-listings';
       container.innerHTML = `
         <div style="grid-column: 1 / -1; text-align: center; padding: 60px 24px; background: var(--bg-surface); border: 2px dashed var(--border-color); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);">
-          <div style="font-size: 3.5rem; margin-bottom: 12px;">🌴</div>
+          <div style="font-size: 3.5rem; margin-bottom: 12px;">${isMyListingsTab ? '🏠' : '🌴'}</div>
           <h3 style="font-size: 1.4rem; font-weight: 800; margin-bottom: 8px; color: var(--text-main);">
-            Start Fresh: No rooms posted yet in Kerala!
+            ${isMyListingsTab ? 'You haven’t published any rooms yet!' : 'No properties found matching your criteria!'}
           </h3>
           <p style="color: var(--text-muted); max-width: 540px; margin: 0 auto 24px; font-size: 0.95rem; line-height: 1.6;">
-            Be the very first to post your room in Kakkanad Infopark, Technopark Trivandrum, Cyberpark Calicut, or anywhere in Kerala. You can upload real photos, scroll them, and share directly to WhatsApp!
+            ${isMyListingsTab 
+              ? 'Click below to publish your room in Kakkanad Infopark, Technopark Trivandrum, Cyberpark Calicut, or anywhere in Kerala. You can upload up to 15 real photos and pick your cover picture!'
+              : 'Try clearing your filters or be the first to publish a room in this location.'}
           </p>
           <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
             <button class="btn btn-primary btn-lg" onclick="app.openPostRoomModal()">
-              ➕ Post Your Room Now
+              ➕ Publish a Room Now
             </button>
+            ${!isMyListingsTab ? `
+              <button class="btn btn-secondary btn-lg" onclick="app.resetFilters()">
+                🔄 Reset Filters
+              </button>
+            ` : ''}
             <button class="btn btn-whatsapp btn-lg" onclick="app.shareAppOnWhatsApp()">
               📲 Share on WhatsApp
             </button>
@@ -1578,7 +1780,16 @@ class NestMateKeralaApp {
     const isFav = this.favorites.includes(item.id);
     const host = item.host;
     const match = item.matchData;
-    const images = item.images && item.images.length > 0 ? item.images : [KERALA_ROOM_SVG];
+    
+    // Order images with coverImage first if specified
+    let images = item.images && item.images.length > 0 ? [...item.images] : [];
+    if (item.coverImage && images.includes(item.coverImage)) {
+      images = [item.coverImage, ...images.filter(x => x !== item.coverImage)];
+    } else if (item.coverImage && images.length === 0) {
+      images = [item.coverImage];
+    }
+    if (images.length === 0) images = [KERALA_ROOM_SVG];
+
     const currentIdx = this.cardPhotoIndices[item.id] || 0;
     const currentImg = images[currentIdx] || images[0];
 
@@ -1596,14 +1807,39 @@ class NestMateKeralaApp {
 
     const showArrows = images.length > 1;
 
+    // Status Badge
+    let statusBadgeHTML = '';
+    if (item.status === 'RENTED') {
+      statusBadgeHTML = '<span class="card-status-badge status-rented">Occupied / Rented</span>';
+    } else if (item.status === 'INACTIVE') {
+      statusBadgeHTML = '<span class="card-status-badge status-inactive">Paused / Inactive</span>';
+    } else if (this.activeTab === 'my-listings' && (item.status === 'ACTIVE' || !item.status)) {
+      statusBadgeHTML = '<span class="card-status-badge status-active">Live & Active</span>';
+    }
+
+    // Top 3 facilities pills
+    const facilitiesHTML = (item.amenities || []).slice(0, 3).map(am => 
+      `<span class="life-chip" style="font-size:0.75rem; background:var(--bg-surface-alt);"><span style="color:var(--primary); font-weight:bold;">✓</span> ${am}</span>`
+    ).join('');
+
+    const isOwner = this.currentUser && item.hostId === this.currentUser.id;
+
     return `
       <div class="listing-card" id="card-${item.id}">
         <div class="card-media">
-          <img src="${currentImg}" id="card-img-${item.id}" class="card-img" alt="${item.title}" onerror="this.src='${KERALA_ROOM_SVG}'">
+          <img src="${currentImg}" id="card-img-${item.id}" class="card-img" alt="${item.title}" onerror="this.src='${KERALA_ROOM_SVG}'" onclick="app.openListingDetail('${item.id}')" style="cursor: pointer;">
           
+          ${statusBadgeHTML}
+
           ${showArrows ? `
             <button class="card-nav-prev" onclick="app.prevCardPhoto('${item.id}', event)" title="Previous photo">&lsaquo;</button>
             <button class="card-nav-next" onclick="app.nextCardPhoto('${item.id}', event)" title="Next photo">&rsaquo;</button>
+          ` : ''}
+
+          ${images.length > 1 ? `
+            <div class="card-dots" id="card-dots-${item.id}">
+              ${images.slice(0, 5).map((_, i) => `<span class="card-dot ${i === (currentIdx % 5) ? 'active' : ''}"></span>`).join('')}
+            </div>
           ` : ''}
 
           <div class="card-badges-top">
@@ -1618,7 +1854,7 @@ class NestMateKeralaApp {
 
           <div class="card-badges-bottom">
             <span class="pill-badge" id="card-photo-counter-${item.id}">📷 ${currentIdx + 1}/${images.length} Photos</span>
-            <span class="pill-badge">🚪 ${item.roomType}</span>
+            <span class="pill-badge">🚪 ${item.roomType || 'Room'}</span>
           </div>
         </div>
 
@@ -1629,11 +1865,11 @@ class NestMateKeralaApp {
             </div>
             <div class="roommates-needed-badge">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              ${item.roommatesNeeded} needed
+              ${item.roommatesNeeded} space${item.roommatesNeeded > 1 ? 's' : ''} available
             </div>
           </div>
 
-          <h3 class="card-title" title="${item.title}">${item.title}</h3>
+          <h3 class="card-title" title="${item.title}" onclick="app.openListingDetail('${item.id}')" style="cursor: pointer;">${item.title}</h3>
 
           <div class="card-location">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -1646,10 +1882,16 @@ class NestMateKeralaApp {
             ${shiftTag}
           </div>
 
+          ${facilitiesHTML ? `
+            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">
+              ${facilitiesHTML}
+            </div>
+          ` : ''}
+
           <div class="card-footer">
             <div class="host-mini" title="Host: ${host ? host.name : 'Host'}">
-              ${(host && host.avatar) || (listing && listing.hostAvatar) ? `
-                <img src="${(host && host.avatar) || listing.hostAvatar}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1.5px solid var(--primary); flex-shrink:0;" alt="Host Avatar" onerror="this.src=DEFAULT_AVATAR_SVG">
+              ${(host && host.avatar) || (item && item.hostAvatar) ? `
+                <img src="${(host && host.avatar) || item.hostAvatar}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1.5px solid var(--primary); flex-shrink:0;" alt="Host Avatar" onerror="this.src=DEFAULT_AVATAR_SVG">
               ` : `
                 <div class="host-avatar" style="display:flex; align-items:center; justify-content:center; background:#059669; color:#fff; font-weight:700; width:32px; height:32px; border-radius:50%;">
                   ${(host && host.name ? host.name : 'H').charAt(0).toUpperCase()}
@@ -1666,13 +1908,51 @@ class NestMateKeralaApp {
 
             <div class="card-actions">
               <button class="btn btn-outline btn-sm" onclick="app.openListingDetail('${item.id}')">
-                View & Map
+                View Details
               </button>
               <button class="btn btn-whatsapp btn-sm" onclick="app.shareListingOnWhatsApp('${item.id}')" title="Share Photos to WhatsApp">
                 Share
               </button>
             </div>
           </div>
+
+          ${isOwner ? `
+            <div class="card-owner-toolbar">
+              <div style="font-size: 0.74rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
+                <span>⚙️ Manage My Listing</span>
+                <span style="font-weight: 800; color: ${item.status === 'RENTED' ? '#dc2626' : (item.status === 'INACTIVE' ? '#64748b' : '#059669')};">
+                  ● ${item.status || 'ACTIVE'}
+                </span>
+              </div>
+              <div class="owner-actions-row">
+                ${item.status === 'RENTED' ? `
+                  <button type="button" class="btn btn-sm btn-outline" onclick="app.toggleListingStatus('${item.id}', 'ACTIVE')" title="Make listing available again">
+                    🔄 Reactivate
+                  </button>
+                ` : `
+                  <button type="button" class="btn btn-sm btn-outline" onclick="app.toggleListingStatus('${item.id}', 'RENTED')" title="Mark room as occupied/rented">
+                    🔒 Mark as Rented
+                  </button>
+                `}
+                ${item.status === 'INACTIVE' ? `
+                  <button type="button" class="btn btn-sm btn-outline" onclick="app.toggleListingStatus('${item.id}', 'ACTIVE')" title="Publish listing active">
+                    ▶️ Activate
+                  </button>
+                ` : (item.status !== 'RENTED' ? `
+                  <button type="button" class="btn btn-sm btn-outline" onclick="app.toggleListingStatus('${item.id}', 'INACTIVE')" title="Temporarily hide listing">
+                    ⏸️ Pause
+                  </button>
+                ` : '')}
+                <button type="button" class="btn btn-sm btn-primary" onclick="app.editListing('${item.id}')" title="Edit room details and photos">
+                  ✏️ Edit
+                </button>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="app.deleteListing('${item.id}')" title="Delete listing permanently">
+                  🗑️ Delete
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
         </div>
       </div>
     `;
@@ -1743,7 +2023,7 @@ class NestMateKeralaApp {
     bodyEl.innerHTML = `
       <!-- INTERACTIVE PHOTO CAROUSEL -->
       <div class="detail-photo-carousel">
-        <img src="${images[0]}" id="main-carousel-img" alt="Room Photo">
+        <img src="${images[0]}" id="main-carousel-img" alt="Room Photo" onclick="app.openLightbox(app.detailActiveListing.images || [app.detailActiveListing.coverImage], app.detailActivePhotoIdx)" style="cursor: zoom-in;" title="Click to open fullscreen photo viewer">
 
         ${totalPhotos > 1 ? `
           <button class="carousel-btn carousel-prev" onclick="app.setDetailActivePhoto(app.detailActivePhotoIdx - 1)" title="Previous photo">&lsaquo;</button>
@@ -1751,8 +2031,8 @@ class NestMateKeralaApp {
         ` : ''}
 
         <div style="position: absolute; bottom: 14px; left: 16px; z-index: 10;">
-          <span class="pill-badge" id="carousel-counter-badge" style="font-size: 0.82rem; padding: 6px 12px;">
-            📷 Photo 1 of ${totalPhotos}
+          <span class="pill-badge" id="carousel-counter-badge" style="font-size: 0.82rem; padding: 6px 12px; cursor: pointer;" onclick="app.openLightbox(app.detailActiveListing.images || [app.detailActiveListing.coverImage], app.detailActivePhotoIdx)">
+            📷 Photo 1 of ${totalPhotos} (Click to Expand ⤢)
           </span>
         </div>
       </div>
@@ -1767,10 +2047,13 @@ class NestMateKeralaApp {
       <!-- PHOTO SHARING & ACTION TOOLBAR -->
       <div class="photo-share-toolbar">
         <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
-          <span>📸 Share & Save Photos</span>
+          <span>📸 Photos & Actions</span>
           <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal;">(${totalPhotos} uploaded)</span>
         </div>
         <div class="photo-share-actions">
+          <button class="btn btn-primary btn-sm" onclick="app.openLightbox(app.detailActiveListing.images || [app.detailActiveListing.coverImage], app.detailActivePhotoIdx)" title="Browse all room photos in fullscreen">
+            ⤢ Fullscreen Gallery
+          </button>
           <button class="btn btn-whatsapp btn-sm" onclick="app.shareListingOnWhatsApp('${listing.id}')" title="Share with photos on WhatsApp">
             📲 Share on WhatsApp
           </button>
@@ -1970,27 +2253,124 @@ class NestMateKeralaApp {
   }
 
   /* ==========================================================================
-     Post a Room Listing
+     Post a Room Listing & Airbnb-Style Property Management
      ========================================================================== */
 
-  openPostRoomModal() {
+  openPostRoomModal(editListingId = null) {
     if (!this.currentUser) {
-      this.showToast('Please sign in or register to post your room!');
+      this.showToast('Please sign in or register to publish your room!');
       this.showLoginView();
       return;
     }
+
+    const modalTitle = document.getElementById('post-room-modal-title');
+    const submitBtn = document.getElementById('post-room-submit-btn');
+    const editingInput = document.getElementById('post-editing-id');
+
+    if (editListingId) {
+      const listing = this.listings.find(l => l.id === editListingId);
+      if (!listing) return;
+      this.editingListingId = editListingId;
+      if (editingInput) editingInput.value = editListingId;
+      if (modalTitle) modalTitle.innerHTML = '✏️ Edit Room Listing';
+      if (submitBtn) submitBtn.textContent = 'Save Changes';
+
+      document.getElementById('post-title').value = listing.title || '';
+      document.getElementById('post-room-type').value = listing.roomType || 'Private Room';
+      document.getElementById('post-location').value = listing.location || '';
+      document.getElementById('post-address').value = listing.address || '';
+      document.getElementById('post-rent-split').value = listing.rentSplit || '';
+      document.getElementById('post-roommates-needed').value = listing.roommatesNeeded || 1;
+      document.getElementById('post-deposit').value = listing.deposit || '';
+      document.getElementById('post-available-date').value = listing.availableFrom || 'Immediate';
+      document.getElementById('post-smoking-rule').value = listing.smokingRule || 'no';
+      document.getElementById('post-drinking-rule').value = listing.drinkingRule || 'social';
+      document.getElementById('post-shift-preference').value = listing.workingShiftPreference || 'any';
+      document.getElementById('post-gender-preference').value = listing.genderPreference || 'any';
+      document.getElementById('post-description').value = listing.description || '';
+
+      // Check amenities checkboxes
+      const amenitiesList = listing.amenities || [];
+      document.querySelectorAll('.amenity-checkbox input').forEach(cb => {
+        cb.checked = amenitiesList.includes(cb.value);
+      });
+
+      // Load existing images and cover photo
+      this.newListingPhotos = listing.images ? [...listing.images] : (listing.coverImage ? [listing.coverImage] : []);
+      this.coverPhotoIndex = 0;
+      if (listing.coverImage && this.newListingPhotos.length > 0) {
+        const foundIdx = this.newListingPhotos.indexOf(listing.coverImage);
+        if (foundIdx > -1) this.coverPhotoIndex = foundIdx;
+      }
+      this.renderPostPhotoPreviews();
+      this.updateFormMapPreview();
+    } else {
+      this.editingListingId = null;
+      if (editingInput) editingInput.value = '';
+      if (modalTitle) modalTitle.innerHTML = `
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Post a Room & Find Roommates in Kerala
+      `;
+      if (submitBtn) submitBtn.textContent = 'Publish Room Listing';
+
+      const form = document.getElementById('form-post-room');
+      if (form) form.reset();
+      this.newListingPhotos = [];
+      this.coverPhotoIndex = 0;
+      this.renderPostPhotoPreviews();
+      this.updateFormMapPreview();
+    }
+
     this.openModal('modal-post-room');
   }
 
-  handleCreateListing(event) {
+  editListing(id) {
+    this.openPostRoomModal(id);
+  }
+
+  async toggleListingStatus(id, newStatus) {
+    try {
+      await ListingsAPI.updateStatus(id, newStatus);
+      const listing = this.listings.find(l => l.id === id);
+      if (listing) {
+        listing.status = newStatus;
+      }
+      Storage.saveListings(this.listings);
+      this.renderListings();
+      this.showToast(`Listing is now marked as ${newStatus}!`);
+    } catch (err) {
+      this.showToast(`⚠️ ${err.message}`);
+    }
+  }
+
+  async deleteListing(id) {
+    if (!confirm('Are you sure you want to permanently delete this room listing?')) return;
+    try {
+      await ListingsAPI.deleteListing(id);
+      this.listings = this.listings.filter(l => l.id !== id);
+      Storage.saveListings(this.listings);
+      this.renderListings();
+      this.showToast('🗑️ Room listing deleted permanently.');
+    } catch (err) {
+      this.showToast(`⚠️ ${err.message}`);
+    }
+  }
+
+  async handleCreateListing(event) {
     event.preventDefault();
+
+    if (!this.currentUser) {
+      this.showToast('Please sign in or register to publish your room!');
+      this.showLoginView();
+      return;
+    }
 
     const title = document.getElementById('post-title').value.trim();
     const roomType = document.getElementById('post-room-type').value;
     const location = document.getElementById('post-location').value.trim();
     const address = document.getElementById('post-address').value.trim();
-    const rentSplit = parseFloat(document.getElementById('post-rent-split').value);
-    const roommatesNeeded = parseInt(document.getElementById('post-roommates-needed').value);
+    const rentSplit = parseFloat(document.getElementById('post-rent-split').value) || 0;
+    const roommatesNeeded = parseInt(document.getElementById('post-roommates-needed').value) || 1;
     const deposit = parseFloat(document.getElementById('post-deposit').value) || rentSplit * 2;
     const availableFrom = document.getElementById('post-available-date').value || 'Immediate';
     const smokingRule = document.getElementById('post-smoking-rule').value;
@@ -2004,51 +2384,108 @@ class NestMateKeralaApp {
       amenities.push(cb.value);
     });
 
-    const newListing = {
-      id: `lst_${Date.now()}`,
-      hostId: this.currentUser.id,
-      hostName: this.currentUser.name,
-      hostAvatar: this.currentUser.avatar || "",
-      hostPhone: this.currentUser.phone,
-      hostEmail: this.currentUser.email,
-      hostOccupation: this.currentUser.occupation,
-      title: title,
-      propertyType: "Apartment",
-      roomType: roomType,
-      location: location,
-      neighborhood: location.split(',')[0],
-      address: address,
-      city: "Kerala",
-      totalRent: rentSplit * (roommatesNeeded + 1),
-      rentSplit: rentSplit,
-      currency: "₹",
-      deposit: deposit,
-      billsIncluded: true,
-      roommatesNeeded: roommatesNeeded,
-      genderPreference: genderPref,
-      availableFrom: availableFrom,
-      smokingRule: smokingRule,
-      drinkingRule: drinkingRule,
-      workingShiftPreference: shiftPref,
-      petPolicy: "yes",
-      cleanlinessExpectation: "high",
-      amenities: amenities.length > 0 ? amenities : ["High-Speed WiFi", "Washing Machine"],
-      images: this.newListingPhotos.length > 0 ? [...this.newListingPhotos] : [KERALA_ROOM_SVG],
-      description: description,
-      postedDate: "Just now",
-      status: "active"
-    };
+    const submitBtn = document.getElementById('post-room-submit-btn');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = this.editingListingId ? 'Saving Changes...' : 'Publishing Room...';
+    }
 
-    this.listings.unshift(newListing);
-    Storage.saveListings(this.listings);
+    try {
+      const photos = this.newListingPhotos.length > 0 ? [...this.newListingPhotos] : [KERALA_ROOM_SVG];
+      const cover = photos[this.coverPhotoIndex] || photos[0];
 
-    this.newListingPhotos = [];
-    this.renderPostPhotoPreviews();
+      if (this.editingListingId) {
+        // Edit mode: update existing listing
+        const updatePayload = {
+          id: this.editingListingId,
+          title,
+          roomType,
+          location,
+          address,
+          rentSplit,
+          roommatesNeeded,
+          deposit,
+          availableFrom,
+          smokingRule,
+          drinkingRule,
+          workingShiftPreference: shiftPref,
+          genderPreference: genderPref,
+          amenities,
+          images: photos,
+          coverImage: cover,
+          description
+        };
 
-    this.closeModal('modal-post-room');
-    this.showToast('🎉 Your room in Kerala is published live!');
-    this.showMainView();
-    this.switchTab('my-listings');
+        const updated = await ListingsAPI.updateListing(updatePayload);
+        const idx = this.listings.findIndex(l => l.id === this.editingListingId);
+        if (idx > -1) {
+          this.listings[idx] = { ...this.listings[idx], ...updated };
+        }
+        Storage.saveListings(this.listings);
+        this.closeModal('modal-post-room');
+        this.showToast('✅ Room listing updated successfully!');
+      } else {
+        // Create mode: publish newly created room
+        const newListingData = {
+          hostId: this.currentUser.id,
+          hostName: this.currentUser.name,
+          hostAvatar: this.currentUser.avatar || "",
+          hostPhone: this.currentUser.phone || "98451 23456",
+          hostEmail: this.currentUser.email || this.currentUser.gmail,
+          hostOccupation: this.currentUser.occupation || "Working Professional",
+          title,
+          propertyType: "Apartment",
+          roomType,
+          location,
+          neighborhood: location.split(',')[0].trim(),
+          address,
+          city: "Kerala",
+          totalRent: rentSplit * (roommatesNeeded + 1),
+          rentSplit,
+          currency: "₹",
+          deposit,
+          billsIncluded: true,
+          roommatesNeeded,
+          genderPreference: genderPref,
+          availableFrom,
+          smokingRule,
+          drinkingRule,
+          workingShiftPreference: shiftPref,
+          petPolicy: "yes",
+          cleanlinessExpectation: "high",
+          amenities: amenities.length > 0 ? amenities : ["High-Speed WiFi", "Washing Machine"],
+          images: photos,
+          coverImage: cover,
+          description,
+          status: "ACTIVE"
+        };
+
+        const published = await ListingsAPI.publishListing(newListingData);
+        this.listings.unshift(published);
+        Storage.saveListings(this.listings);
+        this.closeModal('modal-post-room');
+        // Exact user requirement message:
+        this.showToast('🎉 Your room has been published successfully!');
+      }
+
+      this.newListingPhotos = [];
+      this.coverPhotoIndex = 0;
+      this.editingListingId = null;
+      this.renderPostPhotoPreviews();
+
+      // Immediately show in Available Properties without requiring a manual refresh
+      this.renderListings();
+      this.showMainView();
+      this.switchTab('all');
+      window.scrollTo({ top: 380, behavior: 'smooth' });
+    } catch (err) {
+      this.showToast(`⚠️ ${err.message}`);
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Publish Room Listing';
+      }
+    }
   }
 
   logout() {
