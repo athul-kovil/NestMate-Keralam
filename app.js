@@ -30,7 +30,12 @@ class NestMateKeralaApp {
 
     this.activeConversationId = null;
     this.newListingPhotos = [];
-    this.pageOtpSent = false;
+    
+    // Modern Auth & Profile State
+    this.pendingVerificationEmail = null;
+    this.verificationCountdownInterval = null;
+    this.registerAvatarData = "";
+    this.profileModalAvatarData = "";
 
     // Track active photo index in listing detail modal
     this.detailActivePhotoIdx = 0;
@@ -114,6 +119,10 @@ class NestMateKeralaApp {
     if (loginNav) loginNav.classList.add('active');
     if (exploreNav) exploreNav.classList.remove('active');
 
+    if (!this.pendingVerificationEmail) {
+      this.switchAuthTab('login');
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -148,152 +157,784 @@ class NestMateKeralaApp {
   }
 
   /* ==========================================================================
-     Page Login Handlers (Step 1: Mobile & Email)
+     Modern Authentication Handlers (Gmail & Password with PBKDF2 Hashing)
      ========================================================================== */
 
-  switchPageLoginMethod(method) {
-    ['mobile', 'email', 'signup'].forEach(m => {
-      const tab = document.getElementById(`page-tab-${m}`);
-      const form = document.getElementById(`page-form-${m}`);
-      if (tab) tab.classList.toggle('active', m === method);
-      if (form) form.style.display = m === method ? 'block' : 'none';
-    });
+  switchAuthTab(tab) {
+    const tabLogin = document.getElementById('auth-tab-login');
+    const tabRegister = document.getElementById('auth-tab-register');
+    const formLogin = document.getElementById('page-form-login');
+    const formRegister = document.getElementById('page-form-register');
+    const boxVerify = document.getElementById('page-box-verification');
+    const headerTitle = document.getElementById('auth-title');
+    const headerSubtitle = document.getElementById('auth-subtitle');
+    const guestBox = document.getElementById('auth-guest-browse-box');
+
+    if (tabLogin) tabLogin.classList.toggle('active', tab === 'login');
+    if (tabRegister) tabRegister.classList.toggle('active', tab === 'register');
+
+    if (formLogin) formLogin.style.display = tab === 'login' ? 'block' : 'none';
+    if (formRegister) formRegister.style.display = tab === 'register' ? 'block' : 'none';
+    if (boxVerify) boxVerify.style.display = 'none';
+    if (guestBox) guestBox.style.display = 'block';
+
+    const authTabs = document.querySelector('.auth-nav-tabs');
+    if (authTabs) authTabs.style.display = 'flex';
+
+    if (headerTitle && headerSubtitle) {
+      if (tab === 'login') {
+        headerTitle.textContent = 'Welcome to NestMate';
+        headerSubtitle.textContent = 'Sign in using your registered Gmail address and password:';
+      } else {
+        headerTitle.textContent = 'Create Your NestMate Account';
+        headerSubtitle.textContent = 'Join Kerala’s roommate network with secure Gmail verification:';
+      }
+    }
   }
 
-  handlePageMobileLogin(event) {
-    event.preventDefault();
-    const phoneInput = document.getElementById('page-mobile-input').value.trim();
-    const otpGroup = document.getElementById('page-otp-group');
-    const submitBtn = document.getElementById('page-btn-mobile-submit');
+  /* Form Validations */
 
-    if (!this.pageOtpSent) {
-      this.pageOtpSent = true;
-      otpGroup.style.display = 'block';
-      document.getElementById('page-otp-input').value = '1234';
-      submitBtn.textContent = 'Verify OTP & Go to Step 2';
-      this.showToast('📲 OTP sent to +91 ' + phoneInput + '! Demo code: 1234');
+  validateLoginGmail() {
+    const input = document.getElementById('login-gmail-input');
+    const feedback = document.getElementById('login-gmail-feedback');
+    if (!input || !feedback) return;
+    const val = input.value.trim();
+    if (!val) {
+      feedback.textContent = '';
+      return;
+    }
+    if (CryptoAuth.isValidGmail(val)) {
+      feedback.className = 'form-feedback valid';
+      feedback.textContent = '✅ Valid Gmail address';
+    } else {
+      feedback.className = 'form-feedback invalid';
+      feedback.textContent = '❌ Must be a valid @gmail.com address';
+    }
+  }
+
+  validateRegisterGmail() {
+    const input = document.getElementById('register-gmail');
+    const feedback = document.getElementById('register-gmail-feedback');
+    if (!input || !feedback) return;
+    const val = input.value.trim();
+    if (!val) {
+      feedback.textContent = '';
+      return;
+    }
+    if (CryptoAuth.isValidGmail(val)) {
+      feedback.className = 'form-feedback valid';
+      feedback.textContent = '✅ Valid Gmail address';
+    } else {
+      feedback.className = 'form-feedback invalid';
+      feedback.textContent = '❌ Only @gmail.com addresses are accepted';
+    }
+  }
+
+  validateRegisterRecovery() {
+    const gmailInput = document.getElementById('register-gmail');
+    const recInput = document.getElementById('register-recovery-email');
+    const feedback = document.getElementById('register-recovery-feedback');
+    if (!recInput || !feedback) return;
+    const recVal = recInput.value.trim();
+    const gVal = gmailInput ? gmailInput.value.trim() : '';
+
+    if (!recVal) {
+      feedback.textContent = '';
       return;
     }
 
-    const otp = document.getElementById('page-otp-input').value.trim();
-    if (otp !== '1234') {
-      this.showToast('Please enter demo code: 1234');
+    if (!CryptoAuth.isValidEmail(recVal)) {
+      feedback.className = 'form-feedback invalid';
+      feedback.textContent = '❌ Please enter a valid email format';
       return;
     }
 
-    let user = this.users.find(u => u.phone.includes(phoneInput));
-    if (!user) {
-      user = {
-        id: `usr_${Date.now()}`,
-        name: `User ${phoneInput.slice(-4)}`,
-        phone: phoneInput,
-        email: `user_${phoneInput.slice(-4)}@nestmate.in`,
-        occupation: "Professional in Kerala",
-        age: 24,
-        gender: "Any",
-        smoking: "no",
-        drinking: "social",
-        workingShift: "day",
-        cleanliness: "high",
-        budget: 7000,
-        verified: true
-      };
-      this.users.push(user);
-      Storage.saveUsers(this.users);
+    if (gVal && recVal.toLowerCase() === gVal.toLowerCase()) {
+      feedback.className = 'form-feedback invalid';
+      feedback.textContent = '❌ Recovery email must be different from your Gmail address';
+      return;
     }
 
-    this.currentUser = user;
-    Storage.setCurrentUser(user);
-    this.renderNavUser();
-
-    this.pageOtpSent = false;
-    otpGroup.style.display = 'none';
-    submitBtn.textContent = 'Continue with Mobile →';
-
-    this.showToast(`🎉 Logged in! Step 2: Set your lifestyle details.`);
-    this.showOnboardingView();
+    feedback.className = 'form-feedback valid';
+    feedback.textContent = '✅ Valid recovery email';
   }
 
-  handlePageEmailLogin(event) {
-    event.preventDefault();
-    const email = document.getElementById('page-email-input').value.trim();
-    let user = this.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (!user) {
-      user = {
-        id: `usr_${Date.now()}`,
-        name: email.split('@')[0],
-        phone: "98451 23456",
-        email: email,
-        occupation: "Professional in Kerala",
-        age: 25,
-        gender: "Any",
-        smoking: "no",
-        drinking: "social",
-        workingShift: "day",
-        cleanliness: "high",
-        budget: 7000,
-        verified: true
-      };
-      this.users.push(user);
-      Storage.saveUsers(this.users);
+  handleRegisterPasswordInput() {
+    const pwdInput = document.getElementById('register-password');
+    if (!pwdInput) return;
+    const pwd = pwdInput.value;
+    const strength = CryptoAuth.evaluatePasswordStrength(pwd);
+
+    const fill = document.getElementById('register-pwd-strength-fill');
+    const label = document.getElementById('register-pwd-strength-label');
+
+    if (fill) {
+      fill.style.width = `${strength.percent}%`;
+      fill.className = `strength-bar-fill ${strength.class}`;
+    }
+    if (label) {
+      label.textContent = strength.label;
+      label.style.color = strength.class === 'strong' ? 'var(--success)' : (strength.class === 'good' ? '#3b82f6' : (strength.class === 'fair' ? '#f59e0b' : '#ef4444'));
     }
 
-    this.currentUser = user;
-    Storage.setCurrentUser(user);
-    this.renderNavUser();
-    this.showToast(`🎉 Welcome ${user.name}! Proceeding to details.`);
-    this.showOnboardingView();
+    // Requirements checklist
+    const reqs = strength.checks || {};
+    this.setReqStatus('req-len', reqs.length);
+    this.setReqStatus('req-upper', reqs.uppercase);
+    this.setReqStatus('req-lower', reqs.lowercase);
+    this.setReqStatus('req-num', reqs.number);
+    this.setReqStatus('req-sym', reqs.special);
+
+    this.validatePasswordMatch();
   }
 
-  handlePageSignup(event) {
+  setReqStatus(elId, isValid) {
+    const el = document.getElementById(elId);
+    if (el) {
+      el.className = isValid ? 'valid' : '';
+    }
+  }
+
+  validatePasswordMatch() {
+    const pwd = document.getElementById('register-password');
+    const confirm = document.getElementById('register-confirm-password');
+    const feedback = document.getElementById('register-confirm-feedback');
+    if (!pwd || !confirm || !feedback) return;
+
+    if (!confirm.value) {
+      feedback.textContent = '';
+      return;
+    }
+
+    if (pwd.value === confirm.value) {
+      feedback.className = 'form-feedback valid';
+      feedback.textContent = '✅ Passwords match';
+    } else {
+      feedback.className = 'form-feedback invalid';
+      feedback.textContent = '❌ Passwords do not match';
+    }
+  }
+
+  /* Circular Avatar Selection (JPG, PNG, WEBP, Max 5MB) */
+
+  handleAvatarFileSelect(event, context = 'register') {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate type
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      this.showToast('⚠️ Please upload a valid image (JPG, PNG, or WEBP).');
+      event.target.value = '';
+      return;
+    }
+
+    // Validate size (5MB)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      this.showToast('⚠️ Image file is too large! Please choose an image under 5MB.');
+      event.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      if (context === 'register') {
+        this.registerAvatarData = dataUrl;
+        const img = document.getElementById('register-avatar-img');
+        if (img) img.src = dataUrl;
+        const removeBtn = document.getElementById('register-avatar-remove-btn');
+        if (removeBtn) removeBtn.style.display = 'inline-block';
+        this.showToast('📸 Profile picture selected!');
+      } else if (context === 'profile') {
+        this.profileModalAvatarData = dataUrl;
+        const img = document.getElementById('profile-modal-avatar-img');
+        if (img) img.src = dataUrl;
+        const removeBtn = document.getElementById('profile-modal-avatar-remove-btn');
+        if (removeBtn) removeBtn.style.display = 'inline-block';
+        this.showToast('📸 Profile picture updated in preview!');
+      }
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  }
+
+  removeAvatarPhoto(context = 'register') {
+    if (context === 'register') {
+      this.registerAvatarData = '';
+      const img = document.getElementById('register-avatar-img');
+      if (img) img.src = DEFAULT_AVATAR_SVG;
+      const removeBtn = document.getElementById('register-avatar-remove-btn');
+      if (removeBtn) removeBtn.style.display = 'none';
+      this.showToast('Profile photo removed.');
+    } else if (context === 'profile') {
+      this.profileModalAvatarData = '';
+      const img = document.getElementById('profile-modal-avatar-img');
+      if (img) img.src = DEFAULT_AVATAR_SVG;
+      const removeBtn = document.getElementById('profile-modal-avatar-remove-btn');
+      if (removeBtn) removeBtn.style.display = 'none';
+      this.showToast('Profile photo removed in preview.');
+    }
+  }
+
+  /* Registration Submission */
+
+  async handlePageRegister(event) {
     event.preventDefault();
 
-    const name = document.getElementById('page-signup-name').value.trim();
-    const age = parseInt(document.getElementById('page-signup-age').value) || 24;
-    const gender = document.getElementById('page-signup-gender').value;
-    const email = document.getElementById('page-signup-email').value.trim();
-    const phone = document.getElementById('page-signup-phone').value.trim();
-    const occupation = document.getElementById('page-signup-occupation').value.trim();
+    const name = document.getElementById('register-name').value.trim();
+    const email = document.getElementById('register-gmail').value.trim().toLowerCase();
+    const recoveryEmail = document.getElementById('register-recovery-email').value.trim().toLowerCase();
+    const password = document.getElementById('register-password').value;
+    const confirmPassword = document.getElementById('register-confirm-password').value;
+    const age = parseInt(document.getElementById('register-age').value) || 25;
+    const gender = document.getElementById('register-gender').value;
+    const occupation = (document.getElementById('register-occupation').value || '').trim() || 'Working Professional in Kerala';
 
-    const newUser = {
-      id: `usr_${Date.now()}`,
-      name: name,
-      email: email,
-      phone: phone,
-      age: age,
-      gender: gender,
-      occupation: occupation,
-      smoking: "no",
-      drinking: "social",
-      workingShift: "day",
-      cleanliness: "high",
-      budget: 7000,
-      verified: true
+    if (!name) {
+      this.showToast('⚠️ Please enter your full name.');
+      return;
+    }
+
+    if (!CryptoAuth.isValidGmail(email)) {
+      this.showToast('⚠️ Please enter a valid Gmail address (ending in @gmail.com).');
+      return;
+    }
+
+    if (!CryptoAuth.isValidEmail(recoveryEmail)) {
+      this.showToast('⚠️ Please enter a valid recovery email address.');
+      return;
+    }
+
+    if (email === recoveryEmail) {
+      this.showToast('⚠️ Recovery email must be different from your primary Gmail address.');
+      return;
+    }
+
+    if (password.length < 8) {
+      this.showToast('⚠️ Password must be at least 8 characters long.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      this.showToast('⚠️ Passwords do not match.');
+      return;
+    }
+
+    const submitBtn = document.getElementById('btn-register-submit');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Creating Account & Verifying...';
+    }
+
+    try {
+      const res = await AuthAPI.register({
+        name,
+        email,
+        password,
+        confirmPassword,
+        recoveryEmail,
+        avatar: this.registerAvatarData,
+        age,
+        gender,
+        occupation
+      });
+
+      this.showVerificationScreen(email, res.verificationCode);
+      this.showToast('🎉 Account created! A 6-digit verification code has been generated.');
+    } catch (err) {
+      this.showToast(`⚠️ ${err.message}`);
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Register & Send Verification Code →';
+      }
+    }
+  }
+
+  /* Email Verification Step */
+
+  showVerificationScreen(email, demoCode) {
+    this.pendingVerificationEmail = email;
+
+    const formLogin = document.getElementById('page-form-login');
+    const formRegister = document.getElementById('page-form-register');
+    const boxVerify = document.getElementById('page-box-verification');
+    const emailDisplay = document.getElementById('verify-email-display');
+    const codeDisplay = document.getElementById('verify-demo-code-text');
+    const authTabs = document.querySelector('.auth-nav-tabs');
+    const guestBox = document.getElementById('auth-guest-browse-box');
+
+    if (formLogin) formLogin.style.display = 'none';
+    if (formRegister) formRegister.style.display = 'none';
+    if (authTabs) authTabs.style.display = 'none';
+    if (guestBox) guestBox.style.display = 'none';
+    if (boxVerify) boxVerify.style.display = 'block';
+
+    if (emailDisplay) emailDisplay.textContent = email;
+    if (codeDisplay) codeDisplay.textContent = demoCode || '123456';
+
+    const codeInput = document.getElementById('verify-code-input');
+    if (codeInput) {
+      codeInput.value = '';
+      codeInput.focus();
+    }
+
+    this.startVerificationCountdown(15 * 60);
+  }
+
+  startVerificationCountdown(seconds = 900) {
+    if (this.verificationCountdownInterval) {
+      clearInterval(this.verificationCountdownInterval);
+    }
+
+    let remaining = seconds;
+    const timerEl = document.getElementById('verify-countdown-timer');
+
+    const updateTimer = () => {
+      const mins = Math.floor(remaining / 60);
+      const secs = remaining % 60;
+      if (timerEl) {
+        timerEl.innerHTML = `⏱ Code expires in: <strong>${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}</strong>`;
+      }
+      if (remaining <= 0) {
+        clearInterval(this.verificationCountdownInterval);
+        if (timerEl) {
+          timerEl.innerHTML = `<span style="color:var(--danger); font-weight:700;">⚠️ Code expired. Click Resend Code.</span>`;
+        }
+      }
+      remaining--;
     };
 
-    this.users.push(newUser);
-    Storage.saveUsers(this.users);
+    updateTimer();
+    this.verificationCountdownInterval = setInterval(updateTimer, 1000);
+  }
 
-    this.currentUser = newUser;
-    Storage.setCurrentUser(newUser);
-    this.renderNavUser();
+  autofillVerificationCode() {
+    const demoCode = document.getElementById('verify-demo-code-text');
+    const input = document.getElementById('verify-code-input');
+    if (demoCode && input) {
+      input.value = demoCode.textContent.trim();
+      this.showToast('Verification code autofilled!');
+    }
+  }
 
-    this.showToast(`🎉 Account created for ${name}! Please complete Step 2.`);
-    this.showOnboardingView();
+  async handleVerifyEmailSubmit(event) {
+    event.preventDefault();
+    const codeInput = document.getElementById('verify-code-input');
+    const code = codeInput ? codeInput.value.trim() : '';
+
+    if (!code || code.length < 6) {
+      this.showToast('⚠️ Please enter the full 6-digit verification code.');
+      return;
+    }
+
+    try {
+      const res = await AuthAPI.verifyEmail(this.pendingVerificationEmail, code);
+      if (this.verificationCountdownInterval) {
+        clearInterval(this.verificationCountdownInterval);
+      }
+
+      this.currentUser = res.user;
+      this.users = Storage.getUsers();
+      this.renderNavUser();
+
+      const authTabs = document.querySelector('.auth-nav-tabs');
+      if (authTabs) authTabs.style.display = 'flex';
+
+      this.pendingVerificationEmail = null;
+      this.showToast('🎉 Gmail verified successfully! Welcome to NestMate.');
+      this.showOnboardingView();
+    } catch (err) {
+      this.showToast(`⚠️ ${err.message}`);
+    }
+  }
+
+  async handleResendVerificationCode() {
+    if (!this.pendingVerificationEmail) return;
+
+    try {
+      const res = await AuthAPI.resendVerificationCode(this.pendingVerificationEmail);
+      const codeDisplay = document.getElementById('verify-demo-code-text');
+      if (codeDisplay && res.verificationCode) {
+        codeDisplay.textContent = res.verificationCode;
+      }
+      this.startVerificationCountdown(15 * 60);
+      this.showToast(`📨 Fresh 6-digit code sent to ${this.pendingVerificationEmail}!`);
+    } catch (err) {
+      this.showToast(`⚠️ ${err.message}`);
+    }
+  }
+
+  /* Login Handlers */
+
+  async handlePageLogin(event) {
+    event.preventDefault();
+    const email = document.getElementById('login-gmail-input').value.trim().toLowerCase();
+    const password = document.getElementById('login-password-input').value;
+    const rememberMe = document.getElementById('login-remember-me') ? document.getElementById('login-remember-me').checked : true;
+
+    if (!CryptoAuth.isValidGmail(email)) {
+      this.showToast('⚠️ Please enter a valid Gmail address (ending in @gmail.com).');
+      return;
+    }
+
+    if (!password) {
+      this.showToast('⚠️ Password is required.');
+      return;
+    }
+
+    const submitBtn = document.getElementById('btn-login-submit');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Signing In...';
+    }
+
+    try {
+      const res = await AuthAPI.login(email, password, rememberMe);
+
+      if (res.needsVerification) {
+        this.showVerificationScreen(email, res.verificationCode);
+        this.showToast('⚠️ Please verify your Gmail address to activate your account.');
+        return;
+      }
+
+      this.currentUser = res.user;
+      this.renderNavUser();
+      this.showToast(`🎉 Welcome back, ${this.currentUser.name}!`);
+      this.showMainView();
+    } catch (err) {
+      this.showToast(`⚠️ ${err.message}`);
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign In with Gmail →';
+      }
+    }
+  }
+
+  /* Password Recovery & Forgot Password */
+
+  openForgotPasswordModal() {
+    const step1 = document.getElementById('forgot-step-1');
+    const step2 = document.getElementById('forgot-step-2');
+    const emailInput = document.getElementById('forgot-gmail-input');
+
+    if (step1) step1.style.display = 'block';
+    if (step2) step2.style.display = 'none';
+
+    // Autofill email from login input if present
+    const loginEmail = document.getElementById('login-gmail-input');
+    if (emailInput && loginEmail && loginEmail.value) {
+      emailInput.value = loginEmail.value.trim();
+    }
+
+    this.openModal('modal-forgot-password');
+  }
+
+  async handleForgotPasswordSubmit(event) {
+    event.preventDefault();
+    const emailInput = document.getElementById('forgot-gmail-input');
+    const email = emailInput ? emailInput.value.trim().toLowerCase() : '';
+
+    if (!CryptoAuth.isValidGmail(email)) {
+      this.showToast('⚠️ Please enter a valid Gmail address.');
+      return;
+    }
+
+    const submitBtn = document.getElementById('btn-forgot-submit');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending Recovery Link...';
+    }
+
+    try {
+      const res = await AuthAPI.forgotPassword(email);
+      const step1 = document.getElementById('forgot-step-1');
+      const step2 = document.getElementById('forgot-step-2');
+      const maskedEmail = document.getElementById('forgot-recovery-masked');
+      const tokenInput = document.getElementById('reset-token-input');
+
+      if (step1) step1.style.display = 'none';
+      if (step2) step2.style.display = 'block';
+      if (maskedEmail) maskedEmail.textContent = res.recoveryEmail;
+      if (tokenInput && res.resetToken) tokenInput.value = res.resetToken;
+
+      this.showToast('📨 Reset link sent to your recovery email address!');
+    } catch (err) {
+      this.showToast(`⚠️ ${err.message}`);
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Send Password Reset Link →';
+      }
+    }
+  }
+
+  handleResetPasswordStrength() {
+    const pwdInput = document.getElementById('reset-new-password');
+    const fill = document.getElementById('reset-pwd-strength-fill');
+    if (!pwdInput || !fill) return;
+
+    const strength = CryptoAuth.evaluatePasswordStrength(pwdInput.value);
+    fill.style.width = `${strength.percent}%`;
+    fill.className = `strength-bar-fill ${strength.class}`;
+    this.validateResetPasswordMatch();
+  }
+
+  validateResetPasswordMatch() {
+    const pwd = document.getElementById('reset-new-password');
+    const confirm = document.getElementById('reset-confirm-password');
+    const feedback = document.getElementById('reset-confirm-feedback');
+    if (!pwd || !confirm || !feedback) return;
+
+    if (!confirm.value) {
+      feedback.textContent = '';
+      return;
+    }
+
+    if (pwd.value === confirm.value) {
+      feedback.className = 'form-feedback valid';
+      feedback.textContent = '✅ Passwords match';
+    } else {
+      feedback.className = 'form-feedback invalid';
+      feedback.textContent = '❌ Passwords do not match';
+    }
+  }
+
+  async handleResetPasswordSubmit(event) {
+    event.preventDefault();
+    const token = document.getElementById('reset-token-input').value.trim();
+    const newPassword = document.getElementById('reset-new-password').value;
+    const confirmPassword = document.getElementById('reset-confirm-password').value;
+
+    if (!token) {
+      this.showToast('⚠️ Reset token is required.');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      this.showToast('⚠️ New password must be at least 8 characters long.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      this.showToast('⚠️ Passwords do not match.');
+      return;
+    }
+
+    try {
+      await AuthAPI.resetPassword(token, newPassword, confirmPassword);
+      this.closeModal('modal-forgot-password');
+      this.showToast('✅ Password updated successfully! Please sign in with your new password.');
+      this.switchAuthTab('login');
+      const loginPwd = document.getElementById('login-password-input');
+      if (loginPwd) loginPwd.value = '';
+    } catch (err) {
+      this.showToast(`⚠️ ${err.message}`);
+    }
+  }
+
+  /* User Profile Modal Management */
+
+  openUserProfileModal() {
+    if (!this.currentUser) {
+      this.showToast('Please sign in to view your profile.');
+      this.showLoginView();
+      return;
+    }
+
+    this.profileModalAvatarData = this.currentUser.avatar || '';
+
+    // Populate elements
+    const avatarImg = document.getElementById('profile-modal-avatar-img');
+    const removeBtn = document.getElementById('profile-modal-avatar-remove-btn');
+    if (avatarImg) avatarImg.src = this.currentUser.avatar || DEFAULT_AVATAR_SVG;
+    if (removeBtn) removeBtn.style.display = this.currentUser.avatar ? 'inline-block' : 'none';
+
+    const nameDisplay = document.getElementById('profile-modal-name-display');
+    const gmailDisplay = document.getElementById('profile-modal-gmail-display');
+    const memberSince = document.getElementById('profile-modal-member-since');
+
+    if (nameDisplay) nameDisplay.textContent = this.currentUser.name;
+    if (gmailDisplay) gmailDisplay.textContent = this.currentUser.email;
+    if (memberSince) {
+      const created = this.currentUser.createdAt ? new Date(this.currentUser.createdAt) : new Date();
+      memberSince.textContent = `Member since: ${created.toLocaleDateString('en-IN', { month: 'short', year: 'numeric', day: 'numeric' })}`;
+    }
+
+    // Form inputs
+    const editName = document.getElementById('profile-edit-name');
+    const editGmail = document.getElementById('profile-edit-gmail');
+    const editRecovery = document.getElementById('profile-edit-recovery');
+    const editOcc = document.getElementById('profile-edit-occupation');
+    const editAge = document.getElementById('profile-edit-age');
+    const editGender = document.getElementById('profile-edit-gender');
+    const editBudget = document.getElementById('profile-edit-budget');
+    const editSmoking = document.getElementById('profile-edit-smoking');
+    const editDrinking = document.getElementById('profile-edit-drinking');
+    const editShift = document.getElementById('profile-edit-shift');
+    const editBio = document.getElementById('profile-edit-bio');
+
+    if (editName) editName.value = this.currentUser.name || '';
+    if (editGmail) editGmail.value = this.currentUser.email || '';
+    if (editRecovery) editRecovery.value = this.currentUser.recoveryEmail || '';
+    if (editOcc) editOcc.value = this.currentUser.occupation || '';
+    if (editAge) editAge.value = this.currentUser.age || 25;
+    if (editGender) editGender.value = this.currentUser.gender || 'Male';
+    if (editBudget) editBudget.value = this.currentUser.budget || 7000;
+    if (editSmoking) editSmoking.value = this.currentUser.smoking || 'no';
+    if (editDrinking) editDrinking.value = this.currentUser.drinking || 'social';
+    if (editShift) editShift.value = this.currentUser.workingShift || 'day';
+    if (editBio) editBio.value = this.currentUser.bio || '';
+
+    this.switchProfileTab('info');
+    this.openModal('modal-user-profile');
+  }
+
+  switchProfileTab(tab) {
+    const tabInfo = document.getElementById('tab-btn-profile-info');
+    const tabSec = document.getElementById('tab-btn-profile-security');
+    const formInfo = document.getElementById('form-profile-info');
+    const formSec = document.getElementById('form-profile-security');
+
+    if (tabInfo) tabInfo.classList.toggle('active', tab === 'info');
+    if (tabSec) tabSec.classList.toggle('active', tab === 'security');
+
+    if (formInfo) formInfo.style.display = tab === 'info' ? 'block' : 'none';
+    if (formSec) formSec.style.display = tab === 'security' ? 'block' : 'none';
+  }
+
+  async handleUpdateProfileSubmit(event) {
+    event.preventDefault();
+    if (!this.currentUser) return;
+
+    const name = document.getElementById('profile-edit-name').value.trim();
+    const recoveryEmail = document.getElementById('profile-edit-recovery').value.trim().toLowerCase();
+    const occupation = document.getElementById('profile-edit-occupation').value.trim();
+    const age = parseInt(document.getElementById('profile-edit-age').value) || 25;
+    const gender = document.getElementById('profile-edit-gender').value;
+    const budget = parseFloat(document.getElementById('profile-edit-budget').value) || 7000;
+    const smoking = document.getElementById('profile-edit-smoking').value;
+    const drinking = document.getElementById('profile-edit-drinking').value;
+    const workingShift = document.getElementById('profile-edit-shift').value;
+    const bio = document.getElementById('profile-edit-bio').value.trim();
+
+    if (!name) {
+      this.showToast('⚠️ Full Name is required.');
+      return;
+    }
+
+    if (!CryptoAuth.isValidEmail(recoveryEmail)) {
+      this.showToast('⚠️ Please enter a valid recovery email.');
+      return;
+    }
+
+    if (recoveryEmail === this.currentUser.email.toLowerCase()) {
+      this.showToast('⚠️ Recovery email cannot be the same as your Gmail address.');
+      return;
+    }
+
+    const profileData = {
+      name,
+      recoveryEmail,
+      avatar: this.profileModalAvatarData,
+      occupation,
+      age,
+      gender,
+      budget,
+      smoking,
+      drinking,
+      workingShift,
+      bio
+    };
+
+    try {
+      const res = await AuthAPI.updateProfile(this.currentUser.id, profileData);
+      this.currentUser = res.user;
+      this.renderNavUser();
+      this.closeModal('modal-user-profile');
+      this.showToast('✅ Profile updated successfully!');
+      this.renderListings();
+    } catch (err) {
+      this.showToast(`⚠️ ${err.message}`);
+    }
+  }
+
+  handleProfileNewPasswordStrength() {
+    const pwdInput = document.getElementById('profile-new-password');
+    const fill = document.getElementById('profile-pwd-strength-fill');
+    if (!pwdInput || !fill) return;
+
+    const strength = CryptoAuth.evaluatePasswordStrength(pwdInput.value);
+    fill.style.width = `${strength.percent}%`;
+    fill.className = `strength-bar-fill ${strength.class}`;
+    this.validateProfilePasswordMatch();
+  }
+
+  validateProfilePasswordMatch() {
+    const pwd = document.getElementById('profile-new-password');
+    const confirm = document.getElementById('profile-confirm-new-password');
+    const feedback = document.getElementById('profile-confirm-feedback');
+    if (!pwd || !confirm || !feedback) return;
+
+    if (!confirm.value) {
+      feedback.textContent = '';
+      return;
+    }
+
+    if (pwd.value === confirm.value) {
+      feedback.className = 'form-feedback valid';
+      feedback.textContent = '✅ Passwords match';
+    } else {
+      feedback.className = 'form-feedback invalid';
+      feedback.textContent = '❌ Passwords do not match';
+    }
+  }
+
+  async handleChangePasswordSubmit(event) {
+    event.preventDefault();
+    if (!this.currentUser) return;
+
+    const cur = document.getElementById('profile-current-password').value;
+    const newPwd = document.getElementById('profile-new-password').value;
+    const confirmPwd = document.getElementById('profile-confirm-new-password').value;
+
+    if (!cur) {
+      this.showToast('⚠️ Current password is required.');
+      return;
+    }
+
+    if (newPwd.length < 8) {
+      this.showToast('⚠️ New password must be at least 8 characters long.');
+      return;
+    }
+
+    if (newPwd !== confirmPwd) {
+      this.showToast('⚠️ New passwords do not match.');
+      return;
+    }
+
+    try {
+      await AuthAPI.changePassword(this.currentUser.id, cur, newPwd, confirmPwd);
+      document.getElementById('profile-current-password').value = '';
+      document.getElementById('profile-new-password').value = '';
+      document.getElementById('profile-confirm-new-password').value = '';
+      this.closeModal('modal-user-profile');
+      this.showToast('🔒 Password changed successfully!');
+    } catch (err) {
+      this.showToast(`⚠️ ${err.message}`);
+    }
   }
 
   handleSaveOnboardingDetails(event) {
     event.preventDefault();
 
     if (!this.currentUser) {
-      this.currentUser = {
-        id: `usr_${Date.now()}`,
-        name: "User in Kerala",
-        phone: "98451 23456",
-        email: "user@nestmate.in",
-        occupation: "Working Professional",
-        verified: true
-      };
+      this.showToast('Please sign in first.');
+      this.showLoginView();
+      return;
     }
 
     this.currentUser.smoking = document.getElementById('onboard-smoking').value;
@@ -314,7 +955,7 @@ class NestMateKeralaApp {
     Storage.saveUsers(this.users);
 
     this.renderNavUser();
-    this.showToast('✅ Details saved! Welcome to NestMate Kerala.');
+    this.showToast('✅ Lifestyle & character rules saved! Welcome to NestMate.');
     this.showMainView();
   }
 
@@ -349,28 +990,36 @@ class NestMateKeralaApp {
     if (!container) return;
 
     if (this.currentUser) {
+      const avatarSrc = this.currentUser.avatar || DEFAULT_AVATAR_SVG;
+      const firstName = (this.currentUser.name || 'User').split(' ')[0];
+
       container.innerHTML = `
         <div style="position: relative;">
           <button class="user-menu-btn" id="user-menu-trigger" onclick="app.toggleUserMenu()">
-            <div class="user-avatar-sm" style="background:#059669; color:#fff; font-size: 0.85rem;">
-              ${(this.currentUser.name || 'U').charAt(0).toUpperCase()}
-            </div>
+            <img src="${avatarSrc}" class="user-avatar-circle-sm" alt="Avatar" onerror="this.src=DEFAULT_AVATAR_SVG">
             <div style="text-align: left; line-height: 1.2;">
               <span style="font-size: 0.82rem; font-weight: 700; display: block; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                ${(this.currentUser.name || 'User').split(' ')[0]}
+                ${firstName}
               </span>
               <span style="font-size: 0.68rem; color: var(--success); font-weight: 600;">● Active</span>
             </div>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
           </button>
 
-          <div id="user-dropdown-menu" style="display: none; position: absolute; right: 0; top: 48px; width: 230px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md); box-shadow: var(--shadow-xl); z-index: 60; padding: 8px 0;">
-            <div style="padding: 10px 16px; border-bottom: 1px solid var(--border-color);">
-              <div style="font-weight: 700; font-size: 0.9rem;">${this.currentUser.name}</div>
-              <div style="font-size: 0.75rem; color: var(--text-muted);">${this.currentUser.phone || this.currentUser.email}</div>
+          <div id="user-dropdown-menu" style="display: none; position: absolute; right: 0; top: 48px; width: 250px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md); box-shadow: var(--shadow-xl); z-index: 60; padding: 8px 0;">
+            <div style="padding: 12px 16px; border-bottom: 1px solid var(--border-color); display:flex; align-items:center; gap:12px;">
+              <img src="${avatarSrc}" style="width:40px; height:40px; border-radius:50%; object-fit:cover; border:2px solid var(--primary); flex-shrink:0;" alt="Avatar" onerror="this.src=DEFAULT_AVATAR_SVG">
+              <div style="overflow:hidden;">
+                <div style="font-weight: 700; font-size: 0.9rem; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">${this.currentUser.name}</div>
+                <div style="font-size: 0.74rem; color: var(--text-muted); white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">${this.currentUser.email}</div>
+                <div style="font-size: 0.68rem; color: var(--success); font-weight:700; margin-top:2px;">✅ Verified Gmail</div>
+              </div>
             </div>
+            <button class="nav-btn" style="width: 100%; justify-content: flex-start; border-radius: 0; padding: 10px 16px;" onclick="app.openUserProfileModal()">
+              👤 My Profile & Account Settings
+            </button>
             <button class="nav-btn" style="width: 100%; justify-content: flex-start; border-radius: 0; padding: 10px 16px;" onclick="app.showOnboardingView()">
-              👤 Edit Profile & Habits
+              ⚖️ Edit Lifestyle & Character Rules
             </button>
             <button class="nav-btn" style="width: 100%; justify-content: flex-start; border-radius: 0; padding: 10px 16px;" onclick="app.showMainView(); app.switchTab('my-listings');">
               🏠 My Posted Rooms
@@ -389,7 +1038,7 @@ class NestMateKeralaApp {
       container.innerHTML = `
         <button class="btn btn-primary btn-sm" onclick="app.showLoginView()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-          Login / Register
+          Sign In / Register
         </button>
       `;
     }
@@ -999,9 +1648,13 @@ class NestMateKeralaApp {
 
           <div class="card-footer">
             <div class="host-mini" title="Host: ${host ? host.name : 'Host'}">
-              <div class="host-avatar" style="display:flex; align-items:center; justify-content:center; background:#059669; color:#fff; font-weight:700;">
-                ${(host && host.name ? host.name : 'H').charAt(0).toUpperCase()}
-              </div>
+              ${(host && host.avatar) || (listing && listing.hostAvatar) ? `
+                <img src="${(host && host.avatar) || listing.hostAvatar}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1.5px solid var(--primary); flex-shrink:0;" alt="Host Avatar" onerror="this.src=DEFAULT_AVATAR_SVG">
+              ` : `
+                <div class="host-avatar" style="display:flex; align-items:center; justify-content:center; background:#059669; color:#fff; font-weight:700; width:32px; height:32px; border-radius:50%;">
+                  ${(host && host.name ? host.name : 'H').charAt(0).toUpperCase()}
+                </div>
+              `}
               <div class="host-info">
                 <div class="host-name">
                   ${(host && host.name ? host.name : 'Host').split(' ')[0]}
@@ -1236,9 +1889,13 @@ class NestMateKeralaApp {
       <div class="host-profile-box">
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
           <div style="display: flex; align-items: center; gap: 14px;">
-            <div style="width: 50px; height: 50px; border-radius: 50%; background: #059669; color: #fff; font-size: 1.2rem; font-weight: bold; display: flex; align-items: center; justify-content: center;">
-              ${(host.name || 'H').charAt(0).toUpperCase()}
-            </div>
+            ${(host && host.avatar) || (listing && listing.hostAvatar) ? `
+              <img src="${(host && host.avatar) || listing.hostAvatar}" style="width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary); flex-shrink: 0;" alt="Host Avatar" onerror="this.src=DEFAULT_AVATAR_SVG">
+            ` : `
+              <div style="width: 52px; height: 52px; border-radius: 50%; background: #059669; color: #fff; font-size: 1.2rem; font-weight: bold; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                ${(host.name || 'H').charAt(0).toUpperCase()}
+              </div>
+            `}
             <div>
               <div style="font-size: 1.1rem; font-weight: 800; display: flex; align-items: center; gap: 6px;">
                 ${host.name}
@@ -1351,6 +2008,7 @@ class NestMateKeralaApp {
       id: `lst_${Date.now()}`,
       hostId: this.currentUser.id,
       hostName: this.currentUser.name,
+      hostAvatar: this.currentUser.avatar || "",
       hostPhone: this.currentUser.phone,
       hostEmail: this.currentUser.email,
       hostOccupation: this.currentUser.occupation,

@@ -40,7 +40,7 @@
         </button>
         <button class="nav-btn" id="nav-btn-login-page" onclick="app.showLoginView()">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-          Login Page
+          <span id="nav-login-btn-text">Sign In</span>
         </button>
         <button class="nav-btn" id="nav-btn-map" onclick="app.showMainView(); app.setLayoutView('map');">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg>
@@ -107,29 +107,29 @@
               <li class="login-feature-item">
                 <div class="login-feature-icon">1</div>
                 <div>
-                  <strong>Step 1: Sign in with Mobile (+91) or Email</strong>
-                  <div style="font-size: 0.8rem; opacity: 0.85;">Instant OTP verification without complex passwords.</div>
+                  <strong>Step 1: Sign in with Gmail & Password</strong>
+                  <div style="font-size: 0.8rem; opacity: 0.85;">Secure PBKDF2-HMAC-SHA256 salted password hashing.</div>
                 </div>
               </li>
               <li class="login-feature-item">
                 <div class="login-feature-icon">2</div>
                 <div>
-                  <strong>Step 2: Enter Details & Habits</strong>
-                  <div style="font-size: 0.8rem; opacity: 0.85;">Smoking, drinking, work shift, and rent budget.</div>
+                  <strong>Step 2: Instant Email Verification</strong>
+                  <div style="font-size: 0.8rem; opacity: 0.85;">15-minute verification code for account safety.</div>
                 </div>
               </li>
               <li class="login-feature-item">
                 <div class="login-feature-icon">3</div>
                 <div>
-                  <strong>Step 3: Post Room with Photos & Google Maps</strong>
-                  <div style="font-size: 0.8rem; opacity: 0.85;">Pinpoint exact building on live Google Maps.</div>
+                  <strong>Step 3: Character & Habit Matching</strong>
+                  <div style="font-size: 0.8rem; opacity: 0.85;">Smoking, drinking, work shifts & rent budget.</div>
                 </div>
               </li>
               <li class="login-feature-item">
                 <div class="login-feature-icon">4</div>
                 <div>
-                  <strong>Step 4: Promote & Chat on WhatsApp</strong>
-                  <div style="font-size: 0.8rem; opacity: 0.85;">Direct contact number, email, and 1-click WhatsApp share.</div>
+                  <strong>Step 4: Post Rooms & Connect</strong>
+                  <div style="font-size: 0.8rem; opacity: 0.85;">Real photos, Google Map embed & direct chat.</div>
                 </div>
               </li>
             </ul>
@@ -146,129 +146,225 @@
           <div class="step-progress-bar">
             <div class="step-pill active" id="login-step-pill-1">
               <span class="step-number">1</span>
-              <span>Step 1: Login</span>
+              <span id="login-step-pill-1-text">Step 1: Sign In</span>
             </div>
             <span style="color: var(--text-light);">&rarr;</span>
             <div class="step-pill" id="login-step-pill-2">
               <span class="step-number">2</span>
-              <span>Step 2: User Details</span>
+              <span>Step 2: Habits & Details</span>
             </div>
           </div>
 
-          <div class="login-form-header">
-            <h2>Welcome to NestMate</h2>
-            <p>Login using your mobile number or email address below:</p>
+          <div class="login-form-header" id="auth-form-header">
+            <h2 id="auth-title">Welcome to NestMate</h2>
+            <p id="auth-subtitle">Sign in using your registered Gmail address and password:</p>
           </div>
 
-          <!-- Login Method Switcher Tabs -->
+          <!-- Method Switcher Tabs (Sign In vs Register) -->
           <div class="auth-nav-tabs">
-            <div class="auth-tab active" id="page-tab-mobile" onclick="app.switchPageLoginMethod('mobile')">
-              📱 Mobile (+91)
+            <div class="auth-tab active" id="auth-tab-login" onclick="app.switchAuthTab('login')">
+              🔑 Sign In
             </div>
-            <div class="auth-tab" id="page-tab-email" onclick="app.switchPageLoginMethod('email')">
-              ✉️ Email & Password
-            </div>
-            <div class="auth-tab" id="page-tab-signup" onclick="app.switchPageLoginMethod('signup')">
+            <div class="auth-tab" id="auth-tab-register" onclick="app.switchAuthTab('register')">
               ✨ Register New
             </div>
           </div>
 
-          <!-- Form 1: Mobile Login -->
-          <form id="page-form-mobile" onsubmit="app.handlePageMobileLogin(event)">
+          <!-- ==================== FORM 1: GMAIL & PASSWORD SIGN IN ==================== -->
+          <form id="page-form-login" onsubmit="app.handlePageLogin(event)">
             <div class="form-group">
-              <label class="form-label">Mobile Number</label>
-              <div style="display: flex; gap: 8px;">
-                <select class="form-control" style="width: 105px; flex-shrink: 0;">
-                  <option value="+91" selected>🇮🇳 +91</option>
-                  <option value="+1">🇺🇸 +1</option>
-                  <option value="+971">🇦🇪 +971</option>
-                </select>
-                <input type="tel" class="form-control" id="page-mobile-input" placeholder="Enter 10-digit mobile number" value="98451 23456" required>
+              <label class="form-label" for="login-gmail-input">Gmail Address</label>
+              <input type="email" class="form-control" id="login-gmail-input" placeholder="e.g. rahul@gmail.com" autocomplete="email" required oninput="app.validateLoginGmail()">
+              <div class="form-feedback" id="login-gmail-feedback"></div>
+            </div>
+
+            <div class="form-group">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <label class="form-label" for="login-password-input" style="margin-bottom:0;">Password</label>
+                <button type="button" class="btn btn-ghost" onclick="app.openForgotPasswordModal()" style="font-size:0.8rem; color:var(--primary); font-weight:700; padding:0; height:auto; border:none; text-decoration:underline;">
+                  Forgot Password?
+                </button>
               </div>
-              <small style="color: var(--text-muted); font-size: 0.75rem; margin-top: 4px; display: block;">
-                We will send you a one-time verification code (OTP).
-              </small>
-            </div>
-
-            <!-- OTP Input -->
-            <div class="form-group" id="page-otp-group" style="display: none;">
-              <label class="form-label">Enter 4-Digit Verification OTP</label>
-              <input type="text" maxlength="4" class="form-control" id="page-otp-input" placeholder="1234" style="letter-spacing: 6px; font-size: 1.25rem; font-weight: 700; text-align: center;">
-              <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.78rem;">
-                <span style="color:var(--success);">✅ Demo OTP autofilled: <strong>1234</strong></span>
-                <span style="color:var(--text-muted);">Instant verify</span>
-              </div>
-            </div>
-
-            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 10px;" id="page-btn-mobile-submit">
-              Continue with Mobile &rarr;
-            </button>
-          </form>
-
-          <!-- Form 2: Email Login -->
-          <form id="page-form-email" style="display: none;" onsubmit="app.handlePageEmailLogin(event)">
-            <div class="form-group">
-              <label class="form-label">Email Address</label>
-              <input type="email" class="form-control" id="page-email-input" placeholder="e.g. rahul@gmail.com" value="rahul@gmail.com" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Password</label>
-              <div style="position: relative;">
-                <input type="password" class="form-control" id="page-password-input" value="password123" required>
-                <button type="button" onclick="app.togglePasswordVisibility('page-password-input')" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);">
-                  👁️
+              <div class="password-input-wrapper">
+                <input type="password" class="form-control" id="login-password-input" placeholder="Enter your password" autocomplete="current-password" required>
+                <button type="button" class="password-toggle-btn" onclick="app.togglePasswordVisibility('login-password-input')" title="Toggle password visibility">
+                  <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
               </div>
             </div>
 
-            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 10px;">
-              Sign In with Email &rarr;
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;">
+              <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; cursor:pointer; color:var(--text-main);">
+                <input type="checkbox" id="login-remember-me" checked>
+                <span>Remember Me on this device</span>
+              </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 6px;" id="btn-login-submit">
+              Sign In with Gmail &rarr;
             </button>
           </form>
 
-          <!-- Form 3: Register New Account -->
-          <form id="page-form-signup" style="display: none;" onsubmit="app.handlePageSignup(event)">
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Full Name</label>
-                <input type="text" class="form-control" id="page-signup-name" placeholder="e.g. Rahul Menon" required>
+          <!-- ==================== FORM 2: REGISTER ACCOUNT ==================== -->
+          <form id="page-form-register" style="display: none;" onsubmit="app.handlePageRegister(event)">
+            
+            <!-- Circular Profile Picture Upload -->
+            <div class="form-group" style="text-align: center; margin-bottom: 20px;">
+              <label class="form-label">Profile Picture (JPG, PNG, WEBP)</label>
+              <div class="avatar-upload-container">
+                <div class="avatar-circle-preview" id="register-avatar-preview-box" onclick="document.getElementById('register-avatar-input').click()" title="Click to upload profile photo">
+                  <img id="register-avatar-img" src="data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23059669'/%3E%3Cstop offset='100%25' stop-color='%230d9488'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='120' height='120' rx='60' fill='url(%23bg)'/%3E%3Ccircle cx='60' cy='46' r='22' fill='%23ffffff' opacity='0.9'/%3E%3Cpath d='M28 102 C28 78 44 68 60 68 C76 68 92 78 92 102 Z' fill='%23ffffff' opacity='0.9'/%3E%3C/svg%3E" alt="Avatar Preview">
+                </div>
+                <div class="avatar-upload-buttons">
+                  <input type="file" id="register-avatar-input" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="app.handleAvatarFileSelect(event, 'register')">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('register-avatar-input').click()">
+                    📷 Choose Photo
+                  </button>
+                  <button type="button" class="btn btn-ghost btn-sm" id="register-avatar-remove-btn" onclick="app.removeAvatarPhoto('register')" style="display:none; color:var(--danger);">
+                    Remove
+                  </button>
+                </div>
               </div>
+              <small style="color: var(--text-muted); font-size: 0.74rem; margin-top: 4px; display: block;">
+                Supports JPG, JPEG, PNG, WEBP (Max 5MB). Circular avatar shown on profile & posted rooms.
+              </small>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="register-name">Full Name</label>
+              <input type="text" class="form-control" id="register-name" placeholder="e.g. Rahul Menon" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="register-gmail">Gmail Address (Must end with @gmail.com)</label>
+              <input type="email" class="form-control" id="register-gmail" placeholder="yourname@gmail.com" required oninput="app.validateRegisterGmail()">
+              <div class="form-feedback" id="register-gmail-feedback"></div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="register-recovery-email">Recovery Email Address</label>
+              <input type="email" class="form-control" id="register-recovery-email" placeholder="e.g. personal-backup@yahoo.com or work@company.com" required oninput="app.validateRegisterRecovery()">
+              <small style="color: var(--text-muted); font-size: 0.74rem; margin-top: 4px; display: block;">
+                🔐 Used for secure password recovery if you forget your password. Must differ from Gmail.
+              </small>
+              <div class="form-feedback" id="register-recovery-feedback"></div>
+            </div>
+
+            <!-- Create Password with Strength Meter -->
+            <div class="form-group">
+              <label class="form-label" for="register-password">Create Password</label>
+              <div class="password-input-wrapper">
+                <input type="password" class="form-control" id="register-password" placeholder="At least 8 characters" required oninput="app.handleRegisterPasswordInput()">
+                <button type="button" class="password-toggle-btn" onclick="app.togglePasswordVisibility('register-password')" title="Toggle password visibility">
+                  <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+
+              <!-- Password Strength Meter -->
+              <div class="password-strength-container" id="register-pwd-strength-box" style="margin-top: 8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; margin-bottom:3px;">
+                  <span style="color:var(--text-muted);">Password Strength:</span>
+                  <span id="register-pwd-strength-label" style="font-weight:700;">Empty</span>
+                </div>
+                <div class="strength-bar-track">
+                  <div class="strength-bar-fill" id="register-pwd-strength-fill" style="width: 0%;"></div>
+                </div>
+                <div class="pwd-requirements" id="register-pwd-requirements">
+                  <span id="req-len">● 8+ characters</span>
+                  <span id="req-upper">● Uppercase</span>
+                  <span id="req-lower">● Lowercase</span>
+                  <span id="req-num">● Number</span>
+                  <span id="req-sym">● Special character</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Confirm Password -->
+            <div class="form-group">
+              <label class="form-label" for="register-confirm-password">Confirm Password</label>
+              <div class="password-input-wrapper">
+                <input type="password" class="form-control" id="register-confirm-password" placeholder="Re-enter password" required oninput="app.validatePasswordMatch()">
+                <button type="button" class="password-toggle-btn" onclick="app.togglePasswordVisibility('register-confirm-password')" title="Toggle password visibility">
+                  <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+              <div class="form-feedback" id="register-confirm-feedback"></div>
+            </div>
+
+            <div class="form-row">
               <div class="form-group">
                 <label class="form-label">Age & Gender</label>
                 <div style="display: flex; gap: 8px;">
-                  <input type="number" class="form-control" id="page-signup-age" placeholder="Age" min="18" max="70" value="25" required>
-                  <select class="form-control" id="page-signup-gender">
+                  <input type="number" class="form-control" id="register-age" placeholder="Age" min="18" max="75" value="25">
+                  <select class="form-control" id="register-gender">
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                     <option value="Other">Other</option>
                   </select>
                 </div>
               </div>
-            </div>
-
-            <div class="form-row">
               <div class="form-group">
-                <label class="form-label">Mobile Number (+91)</label>
-                <input type="tel" class="form-control" id="page-signup-phone" placeholder="98451 23456" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Email Address</label>
-                <input type="email" class="form-control" id="page-signup-email" placeholder="name@gmail.com" required>
+                <label class="form-label">Occupation / Office Location</label>
+                <input type="text" class="form-control" id="register-occupation" placeholder="e.g. IT Engineer @ Infopark / Student">
               </div>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Occupation & Office Location</label>
-              <input type="text" class="form-control" id="page-signup-occupation" placeholder="e.g. Software Engineer @ Infopark / Student" required>
-            </div>
-
-            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 10px;">
-              Create Account & Next Step &rarr;
+            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 10px;" id="btn-register-submit">
+              Register & Send Verification Code &rarr;
             </button>
           </form>
 
+          <!-- ==================== BOX 3: EMAIL VERIFICATION STEP ==================== -->
+          <div id="page-box-verification" style="display: none; padding-top: 10px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <div style="width: 56px; height: 56px; border-radius: 50%; background: rgba(5,150,105,0.12); color: var(--primary); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              </div>
+              <h3 style="font-size: 1.45rem; font-weight: 800; margin-bottom: 6px; color: var(--text-main);">Verify Your Gmail Address</h3>
+              <p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.5;">
+                We sent a 6-digit verification code to <strong id="verify-email-display" style="color:var(--primary);"></strong>.
+              </p>
+            </div>
+
+            <!-- Demo Code Hint Banner -->
+            <div class="demo-code-banner" id="verify-demo-banner" onclick="app.autofillVerificationCode()" title="Click to autofill code" style="margin-bottom: 18px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size: 1.3rem;">💡</span>
+                <div>
+                  <div style="font-weight:700; font-size: 0.88rem; color: var(--primary);">
+                    Verification Code: <span id="verify-demo-code-text" style="text-decoration: underline;">123456</span>
+                  </div>
+                  <div style="font-size:0.75rem; color: var(--text-muted);">Click this box to instantly fill the verification code.</div>
+                </div>
+              </div>
+            </div>
+
+            <form onsubmit="app.handleVerifyEmailSubmit(event)">
+              <div class="form-group">
+                <label class="form-label" style="text-align:center;">Enter 6-Digit Verification Code</label>
+                <input type="text" class="form-control" id="verify-code-input" maxlength="6" placeholder="000000" style="letter-spacing: 8px; font-size: 1.6rem; font-weight: 800; text-align: center; height: 56px;" required>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:0.8rem;">
+                  <span id="verify-countdown-timer" style="color:var(--text-muted);">⏱ Code expires in: <strong>14:59</strong></span>
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-resend-code" onclick="app.handleResendVerificationCode()" style="color:var(--primary); font-weight:700; padding:0; border:none;">
+                    Resend Code
+                  </button>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 10px;">
+                Activate Account & Continue &rarr;
+              </button>
+
+              <div style="text-align: center; margin-top: 16px;">
+                <button type="button" class="btn btn-ghost btn-sm" onclick="app.switchAuthTab('login')">
+                  &larr; Back to Sign In
+                </button>
+              </div>
+            </form>
+          </div>
+
           <!-- Guest Browse Button -->
-          <div style="text-align: center; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border-color);">
+          <div style="text-align: center; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border-color);" id="auth-guest-browse-box">
             <button class="btn btn-ghost" onclick="app.showMainView();">
               👀 Skip to Browse Rooms First &rarr;
             </button>
@@ -888,6 +984,266 @@
     </div>
   </div>
 
+  <!-- 5. Forgot Password & Recovery Modal -->
+  <div class="modal-backdrop" id="modal-forgot-password">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title">🔐 Account Recovery</div>
+        <button class="btn btn-ghost btn-icon" onclick="app.closeModal('modal-forgot-password')">&times;</button>
+      </div>
+      
+      <!-- Step 1: Request Gmail Address -->
+      <div class="modal-body" id="forgot-step-1">
+        <div style="margin-bottom: 16px; font-size: 0.9rem; color: var(--text-muted); line-height: 1.5;">
+          Enter your registered Gmail address below. We will send a secure password reset link to your registered recovery email address.
+        </div>
+        <form onsubmit="app.handleForgotPasswordSubmit(event)">
+          <div class="form-group">
+            <label class="form-label" for="forgot-gmail-input">Registered Gmail Address</label>
+            <input type="email" class="form-control" id="forgot-gmail-input" placeholder="yourname@gmail.com" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 10px;" id="btn-forgot-submit">
+            Send Password Reset Link &rarr;
+          </button>
+        </form>
+      </div>
+
+      <!-- Step 2: Reset Password with Token -->
+      <div class="modal-body" id="forgot-step-2" style="display: none;">
+        <div style="background: rgba(5,150,105,0.1); border: 1px solid var(--primary); padding: 14px; border-radius: var(--radius-md); margin-bottom: 18px;">
+          <div style="font-weight: 700; color: var(--primary); margin-bottom: 4px;">✅ Reset Link Dispatched!</div>
+          <div style="font-size: 0.85rem; color: var(--text-main);">
+            We sent a password reset link to your recovery email: <strong id="forgot-recovery-masked"></strong>. Valid for 15 minutes.
+          </div>
+        </div>
+
+        <form onsubmit="app.handleResetPasswordSubmit(event)">
+          <div class="form-group">
+            <label class="form-label" for="reset-token-input">Reset Token / Code</label>
+            <input type="text" class="form-control" id="reset-token-input" placeholder="Paste reset token from email" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="reset-new-password">Create New Password</label>
+            <div class="password-input-wrapper">
+              <input type="password" class="form-control" id="reset-new-password" placeholder="Minimum 8 characters" required oninput="app.handleResetPasswordStrength()">
+              <button type="button" class="password-toggle-btn" onclick="app.togglePasswordVisibility('reset-new-password')" title="Toggle password visibility">
+                <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <div class="strength-bar-track" style="margin-top: 6px;">
+              <div class="strength-bar-fill" id="reset-pwd-strength-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="reset-confirm-password">Confirm New Password</label>
+            <div class="password-input-wrapper">
+              <input type="password" class="form-control" id="reset-confirm-password" placeholder="Re-enter new password" required oninput="app.validateResetPasswordMatch()">
+              <button type="button" class="password-toggle-btn" onclick="app.togglePasswordVisibility('reset-confirm-password')" title="Toggle password visibility">
+                <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <div class="form-feedback" id="reset-confirm-feedback"></div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 10px;">
+            Update Password & Sign In &rarr;
+          </button>
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="app.closeModal('modal-forgot-password')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Dedicated User Profile Management Modal -->
+  <div class="modal-backdrop" id="modal-user-profile">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <div class="modal-title">👤 User Profile & Account Settings</div>
+        <button class="btn btn-ghost btn-icon" onclick="app.closeModal('modal-user-profile')">&times;</button>
+      </div>
+      
+      <div class="modal-body" style="padding: 24px;">
+        <!-- Profile Header Card with Circular Avatar -->
+        <div class="profile-header-card">
+          <div class="profile-avatar-wrapper">
+            <img id="profile-modal-avatar-img" class="profile-avatar-circle" src="data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23059669'/%3E%3Cstop offset='100%25' stop-color='%230d9488'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='120' height='120' rx='60' fill='url(%23bg)'/%3E%3Ccircle cx='60' cy='46' r='22' fill='%23ffffff' opacity='0.9'/%3E%3Cpath d='M28 102 C28 78 44 68 60 68 C76 68 92 78 92 102 Z' fill='%23ffffff' opacity='0.9'/%3E%3C/svg%3E" alt="Profile Picture">
+            <button type="button" class="profile-avatar-edit-badge" onclick="document.getElementById('profile-modal-avatar-input').click()" title="Change Profile Picture">
+              📷
+            </button>
+          </div>
+          <input type="file" id="profile-modal-avatar-input" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="app.handleAvatarFileSelect(event, 'profile')">
+          
+          <div class="profile-header-info">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <h3 id="profile-modal-name-display" style="font-size: 1.35rem; font-weight: 800; color: var(--text-main); margin: 0;">User Name</h3>
+              <span class="pill-badge" style="background:#d1fae5; color:#065f46; font-size: 0.75rem;">
+                ✅ Verified Gmail
+              </span>
+            </div>
+            <div id="profile-modal-gmail-display" style="font-size: 0.88rem; color: var(--text-muted); margin-top: 4px;"></div>
+            <div id="profile-modal-member-since" style="font-size: 0.75rem; color: var(--text-light); margin-top: 2px;"></div>
+          </div>
+
+          <div class="profile-avatar-actions">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('profile-modal-avatar-input').click()">
+              Upload Photo
+            </button>
+            <button type="button" class="btn btn-outline btn-sm" id="profile-modal-avatar-remove-btn" onclick="app.removeAvatarPhoto('profile')" style="color:var(--danger); border-color:var(--border-color);">
+              Remove
+            </button>
+          </div>
+        </div>
+
+        <!-- Profile Navigation Tabs -->
+        <div class="profile-nav-tabs">
+          <button class="profile-tab active" id="tab-btn-profile-info" onclick="app.switchProfileTab('info')">
+            Personal Information
+          </button>
+          <button class="profile-tab" id="tab-btn-profile-security" onclick="app.switchProfileTab('security')">
+            Password & Security
+          </button>
+        </div>
+
+        <!-- Tab 1: Personal Information -->
+        <form id="form-profile-info" onsubmit="app.handleUpdateProfileSubmit(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="profile-edit-name">Full Name</label>
+              <input type="text" class="form-control" id="profile-edit-name" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="profile-edit-gmail">Gmail Address (Primary Login)</label>
+              <input type="email" class="form-control" id="profile-edit-gmail" readonly style="background:var(--bg-surface-alt); cursor:not-allowed;" title="Primary Gmail address cannot be changed">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="profile-edit-recovery">Recovery Email Address</label>
+              <input type="email" class="form-control" id="profile-edit-recovery" required>
+              <small style="color:var(--text-muted); font-size:0.75rem; margin-top:4px; display:block;">
+                Used for password recovery links if you forget your password.
+              </small>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="profile-edit-occupation">Occupation / Office Location</label>
+              <input type="text" class="form-control" id="profile-edit-occupation" placeholder="e.g. Software Engineer @ Infopark">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="profile-edit-age">Age</label>
+              <input type="number" class="form-control" id="profile-edit-age" min="18" max="75">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="profile-edit-gender">Gender</label>
+              <select class="form-control" id="profile-edit-gender">
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="profile-edit-budget">Budget (₹/month)</label>
+              <input type="number" class="form-control" id="profile-edit-budget" step="500">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="profile-edit-smoking">Smoking Habit</label>
+              <select class="form-control" id="profile-edit-smoking">
+                <option value="no">🚭 Non-Smoker</option>
+                <option value="social">💨 Balcony/Social</option>
+                <option value="yes">🚬 Smoker</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="profile-edit-drinking">Drinking Habit</label>
+              <select class="form-control" id="profile-edit-drinking">
+                <option value="no">🚫 Non-Drinker</option>
+                <option value="social">🍷 Social</option>
+                <option value="regular">🍻 Regular</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="profile-edit-shift">Working Routine</label>
+              <select class="form-control" id="profile-edit-shift">
+                <option value="day">Day Shift (9 AM - 6 PM)</option>
+                <option value="wfh">Remote / WFH Friendly</option>
+                <option value="night">Night Shift / Tech Park</option>
+                <option value="student">Student / College Hours</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="profile-edit-bio">About Me (Bio)</label>
+            <textarea class="form-control" id="profile-edit-bio" rows="2" placeholder="Tell potential roommates about your hobbies, work and routine..."></textarea>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color); flex-wrap: wrap; gap: 10px;">
+            <button type="button" class="btn btn-outline btn-sm" onclick="app.logout()" style="color:var(--danger); border-color:var(--border-color);">
+              🚪 Sign Out of Account
+            </button>
+            <button type="submit" class="btn btn-primary btn-lg">
+              💾 Save Profile Changes
+            </button>
+          </div>
+        </form>
+
+        <!-- Tab 2: Change Password -->
+        <form id="form-profile-security" style="display: none;" onsubmit="app.handleChangePasswordSubmit(event)">
+          <div class="form-group">
+            <label class="form-label" for="profile-current-password">Current Password</label>
+            <div class="password-input-wrapper">
+              <input type="password" class="form-control" id="profile-current-password" placeholder="Enter current password" required>
+              <button type="button" class="password-toggle-btn" onclick="app.togglePasswordVisibility('profile-current-password')" title="Toggle password visibility">
+                <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="profile-new-password">New Password</label>
+            <div class="password-input-wrapper">
+              <input type="password" class="form-control" id="profile-new-password" placeholder="Minimum 8 characters" required oninput="app.handleProfileNewPasswordStrength()">
+              <button type="button" class="password-toggle-btn" onclick="app.togglePasswordVisibility('profile-new-password')" title="Toggle password visibility">
+                <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <div class="strength-bar-track" style="margin-top: 6px;">
+              <div class="strength-bar-fill" id="profile-pwd-strength-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="profile-confirm-new-password">Confirm New Password</label>
+            <div class="password-input-wrapper">
+              <input type="password" class="form-control" id="profile-confirm-new-password" placeholder="Re-enter new password" required oninput="app.validateProfilePasswordMatch()">
+              <button type="button" class="password-toggle-btn" onclick="app.togglePasswordVisibility('profile-confirm-new-password')" title="Toggle password visibility">
+                <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <div class="form-feedback" id="profile-confirm-feedback"></div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+            <button type="submit" class="btn btn-primary btn-lg">
+              🔒 Update Password
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notifications Container -->
   <div class="toast-container" id="toast-container"></div>
 
@@ -931,7 +1287,7 @@
           <div class="footer-title">Promote & Connect</div>
           <ul class="footer-links">
             <li><a href="#" onclick="app.copyAppShareLink(); return false;">Copy Shareable Link</a></li>
-            <li><a href="#" onclick="app.showLoginView(); return false;">Mobile / Email Sign In</a></li>
+            <li><a href="#" onclick="app.showLoginView(); return false;">Gmail & Password Sign In</a></li>
           </ul>
         </div>
       </div>
