@@ -589,16 +589,22 @@ const ListingsAPI = {
   // 1. Fetch Listings (default: status = 'ACTIVE' for public discovery, or status = 'all')
   async fetchListings(query = {}) {
     const params = new URLSearchParams();
-    if (query.status) params.set('status', query.status);
-    if (query.userId) params.set('userId', query.userId);
-    if (query.id) params.set('id', query.id);
+    let queryObj = {};
+    if (typeof query === 'string') {
+      if (query !== 'all') params.set('status', query);
+      queryObj = { status: query };
+    } else if (typeof query === 'object' && query !== null) {
+      queryObj = query;
+      if (query.status && query.status !== 'all') params.set('status', query.status);
+      if (query.userId) params.set('userId', query.userId);
+      if (query.id) params.set('id', query.id);
+    }
 
     const queryString = params.toString() ? `?${params.toString()}` : '';
     const apiRes = await this.request(`/api/listings${queryString}`);
 
     if (apiRes.ok && apiRes.data.listings) {
-      // Sync active listings to local storage cache if fetching public
-      if (!query.userId && (!query.status || query.status === 'ACTIVE')) {
+      if (!queryObj.userId && (!queryObj.status || queryObj.status === 'ACTIVE' || queryObj.status === 'all')) {
         Storage.saveListings(apiRes.data.listings);
       }
       return apiRes.data.listings;
@@ -606,11 +612,11 @@ const ListingsAPI = {
 
     // Fallback: LocalStorage
     let local = Storage.getListings();
-    if (query.userId) {
-      return local.filter(l => (l.userId === query.userId || l.hostId === query.userId) && l.status !== 'DELETED');
+    if (queryObj.userId) {
+      return local.filter(l => (l.userId === queryObj.userId || l.hostId === queryObj.userId) && l.status !== 'DELETED');
     }
-    if (query.status && query.status !== 'all') {
-      return local.filter(l => (l.status || 'ACTIVE').toUpperCase() === query.status.toUpperCase());
+    if (queryObj.status && queryObj.status !== 'all') {
+      return local.filter(l => (l.status || 'ACTIVE').toUpperCase() === queryObj.status.toUpperCase());
     }
     return local.filter(l => l.status !== 'DELETED');
   },

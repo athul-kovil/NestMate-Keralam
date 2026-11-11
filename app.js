@@ -1124,12 +1124,13 @@ class NestMateKeralaApp {
     }
     try {
       const serverListings = await ListingsAPI.fetchListings('all');
-      if (serverListings && serverListings.length > 0) {
+      if (Array.isArray(serverListings)) {
         this.listings = serverListings;
         Storage.saveListings(this.listings);
       }
     } catch (err) {
       console.warn('Backend listings sync error:', err);
+      this.listings = Storage.getListings();
     } finally {
       this.renderListings();
     }
@@ -1486,11 +1487,131 @@ class NestMateKeralaApp {
      ========================================================================== */
 
   handleSearchInput() {
-    this.searchQuery = document.getElementById('search-location').value.trim().toLowerCase();
+    const locInput = document.getElementById('search-location');
+    this.searchQuery = locInput ? locInput.value.trim().toLowerCase() : '';
+    const quickInput = document.getElementById('quick-search-location');
+    if (quickInput && locInput) quickInput.value = locInput.value;
+
     this.searchRoommates = document.getElementById('search-roommates').value;
     const budgetVal = document.getElementById('search-budget').value;
     this.searchBudget = budgetVal ? parseFloat(budgetVal) : null;
     this.renderListings();
+  }
+
+  handleQuickLocationInput(value) {
+    this.searchQuery = (value || '').trim().toLowerCase();
+    const heroInput = document.getElementById('search-location');
+    if (heroInput) heroInput.value = value;
+    this.renderListings();
+  }
+
+  clearLocationSearch() {
+    this.searchQuery = '';
+    const heroInput = document.getElementById('search-location');
+    if (heroInput) heroInput.value = '';
+    const quickInput = document.getElementById('quick-search-location');
+    if (quickInput) quickInput.value = '';
+    this.renderListings();
+    this.showToast('📍 Location filter cleared');
+  }
+
+  clearRoommatesFilter() {
+    this.searchRoommates = 'all';
+    const sel = document.getElementById('search-roommates');
+    if (sel) sel.value = 'all';
+    this.renderListings();
+  }
+
+  clearBudgetFilter() {
+    this.searchBudget = null;
+    const bud = document.getElementById('search-budget');
+    if (bud) bud.value = '';
+    this.renderListings();
+  }
+
+  renderActiveFilterChips() {
+    const container = document.getElementById('active-filters-container');
+    if (!container) return;
+
+    let chips = [];
+    if (this.searchQuery) {
+      chips.push(`
+        <span class="filter-chip" onclick="app.clearLocationSearch()" title="Click to clear location filter">
+          📍 Location: <strong>${this.searchQuery}</strong> &times;
+        </span>
+      `);
+    }
+    if (this.searchRoommates && this.searchRoommates !== 'all') {
+      chips.push(`
+        <span class="filter-chip" onclick="app.clearRoommatesFilter()" title="Click to clear">
+          👥 ${this.searchRoommates} Roommate(s) &times;
+        </span>
+      `);
+    }
+    if (this.searchBudget) {
+      chips.push(`
+        <span class="filter-chip" onclick="app.clearBudgetFilter()" title="Click to clear">
+          💰 Max ₹${this.searchBudget.toLocaleString('en-IN')} &times;
+        </span>
+      `);
+    }
+
+    container.innerHTML = chips.join('');
+  }
+
+  matchLocationQuery(item, query) {
+    if (!query) return true;
+    const q = query.toLowerCase().trim();
+    if (!q) return true;
+
+    // Searchable text combining all location-related fields
+    const text = [
+      item.location || '',
+      item.neighborhood || '',
+      item.address || '',
+      item.city || '',
+      item.title || '',
+      item.description || ''
+    ].join(' ').toLowerCase();
+
+    // 1. Direct substring match
+    if (text.includes(q)) return true;
+
+    // 2. Kerala hubs & cities aliases
+    const aliases = {
+      'kochi': ['cochin', 'kakkanad', 'infopark', 'edappally', 'palarivattom', 'kaloor', 'vyttila', 'aluva', 'ernakulam'],
+      'cochin': ['kochi', 'ernakulam', 'kakkanad', 'infopark', 'edappally'],
+      'ernakulam': ['kochi', 'cochin', 'kakkanad', 'infopark', 'edappally', 'palarivattom', 'kaloor', 'vyttila'],
+      'kakkanad': ['infopark', 'kochi', 'ernakulam'],
+      'infopark': ['kakkanad', 'kochi', 'ernakulam'],
+      'edappally': ['kochi', 'ernakulam'],
+      'trivandrum': ['thiruvananthapuram', 'technopark', 'kazhakkoottam', 'karyavattom', 'kowdiar', 'pattom', 'vellayambalam'],
+      'thiruvananthapuram': ['trivandrum', 'technopark', 'kazhakkoottam', 'karyavattom'],
+      'technopark': ['kazhakkoottam', 'trivandrum', 'thiruvananthapuram'],
+      'kazhakkoottam': ['technopark', 'trivandrum', 'thiruvananthapuram'],
+      'calicut': ['kozhikode', 'cyberpark', 'palazhi', 'hilite'],
+      'kozhikode': ['calicut', 'cyberpark', 'palazhi', 'hilite'],
+      'cyberpark': ['kozhikode', 'calicut'],
+      'thrissur': ['trichur', 'swaraj round', 'ayyanthole'],
+      'trichur': ['thrissur', 'swaraj round'],
+      'kottayam': ['kottayam town'],
+      'palakkad': ['palghat']
+    };
+
+    // Check alias match
+    for (const [key, hubList] of Object.entries(aliases)) {
+      if (q.includes(key)) {
+        if (hubList.some(hub => text.includes(hub))) return true;
+      }
+    }
+
+    // 3. Multi-word search (e.g. "Infopark Kakkanad")
+    const words = q.split(/[\s,]+/).filter(w => w.length > 1);
+    if (words.length > 1) {
+      if (words.some(w => text.includes(w))) return true;
+    }
+
+    return false;
   }
 
   executeSearch() {
@@ -1504,6 +1625,9 @@ class NestMateKeralaApp {
   setQuickCity(city) {
     const locInput = document.getElementById('search-location');
     if (locInput) locInput.value = city;
+    const quickInput = document.getElementById('quick-search-location');
+    if (quickInput) quickInput.value = city;
+
     this.searchQuery = city.toLowerCase();
     this.renderListings();
     this.showToast(`Showing rooms near ${city}`);
@@ -1527,6 +1651,14 @@ class NestMateKeralaApp {
       const btn = document.getElementById(`tab-${t}`);
       if (btn) btn.classList.toggle('active', t === tab);
     });
+
+    if (this.layoutView === 'map') {
+      this.setLayoutView('grid');
+    }
+
+    // Sync latest rooms from backend so all rooms uploaded by all users show up
+    this.loadListingsFromBackend();
+  }
 
     if (this.layoutView === 'map') {
       this.setLayoutView('grid');
@@ -1650,12 +1782,7 @@ class NestMateKeralaApp {
     }
 
     if (this.searchQuery) {
-      result = result.filter(item => 
-        (item.location && item.location.toLowerCase().includes(this.searchQuery)) ||
-        (item.neighborhood && item.neighborhood.toLowerCase().includes(this.searchQuery)) ||
-        (item.title && item.title.toLowerCase().includes(this.searchQuery)) ||
-        (item.address && item.address.toLowerCase().includes(this.searchQuery))
-      );
+      result = result.filter(item => this.matchLocationQuery(item, this.searchQuery));
     }
 
     if (this.searchRoommates !== 'all') {
@@ -1730,6 +1857,7 @@ class NestMateKeralaApp {
   /* Render Listings Grid */
   renderListings() {
     this.updateTabCounts();
+    this.renderActiveFilterChips();
     const container = document.getElementById('listings-container');
     if (!container) return;
 
@@ -1822,7 +1950,7 @@ class NestMateKeralaApp {
       `<span class="life-chip" style="font-size:0.75rem; background:var(--bg-surface-alt);"><span style="color:var(--primary); font-weight:bold;">✓</span> ${am}</span>`
     ).join('');
 
-    const isOwner = this.currentUser && item.hostId === this.currentUser.id;
+    const isOwner = this.currentUser && (item.hostId === this.currentUser.id || item.userId === this.currentUser.id);
 
     return `
       <div class="listing-card" id="card-${item.id}">
@@ -1918,36 +2046,27 @@ class NestMateKeralaApp {
 
           ${isOwner ? `
             <div class="card-owner-toolbar">
-              <div style="font-size: 0.74rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
-                <span>⚙️ Manage My Listing</span>
+              <div style="font-size: 0.74rem; font-weight: 800; color: var(--text-muted); margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
+                <span>🔑 Manage My Listing</span>
                 <span style="font-weight: 800; color: ${item.status === 'RENTED' ? '#dc2626' : (item.status === 'INACTIVE' ? '#64748b' : '#059669')};">
-                  ● ${item.status || 'ACTIVE'}
+                  ● ${item.status === 'RENTED' ? 'Occupied / Rented' : (item.status === 'INACTIVE' ? 'Paused' : 'Live & Active')}
                 </span>
               </div>
               <div class="owner-actions-row">
                 ${item.status === 'RENTED' ? `
                   <button type="button" class="btn btn-sm btn-outline" onclick="app.toggleListingStatus('${item.id}', 'ACTIVE')" title="Make listing available again">
-                    🔄 Reactivate
+                    🔄 Reactivate Room
                   </button>
                 ` : `
-                  <button type="button" class="btn btn-sm btn-outline" onclick="app.toggleListingStatus('${item.id}', 'RENTED')" title="Mark room as occupied/rented">
-                    🔒 Mark as Rented
+                  <button type="button" class="btn btn-sm btn-outline" style="border-color: #f59e0b; color: #b45309; font-weight: 700;" onclick="app.toggleListingStatus('${item.id}', 'RENTED')" title="Found roommates! Mark room as rented">
+                    🤝 Found Roommates
                   </button>
                 `}
-                ${item.status === 'INACTIVE' ? `
-                  <button type="button" class="btn btn-sm btn-outline" onclick="app.toggleListingStatus('${item.id}', 'ACTIVE')" title="Publish listing active">
-                    ▶️ Activate
-                  </button>
-                ` : (item.status !== 'RENTED' ? `
-                  <button type="button" class="btn btn-sm btn-outline" onclick="app.toggleListingStatus('${item.id}', 'INACTIVE')" title="Temporarily hide listing">
-                    ⏸️ Pause
-                  </button>
-                ` : '')}
                 <button type="button" class="btn btn-sm btn-primary" onclick="app.editListing('${item.id}')" title="Edit room details and photos">
                   ✏️ Edit
                 </button>
-                <button type="button" class="btn btn-sm btn-secondary" onclick="app.deleteListing('${item.id}')" title="Delete listing permanently">
-                  🗑️ Delete
+                <button type="button" class="btn btn-sm btn-secondary" style="color: #dc2626; border-color: rgba(220, 38, 38, 0.4); font-weight: 700;" onclick="app.deleteListing('${item.id}')" title="Delete listing permanently">
+                  🗑️ Delete Post
                 </button>
               </div>
             </div>
@@ -2020,7 +2139,40 @@ class NestMateKeralaApp {
     const gmapExternalUrl = `https://www.google.com/maps/search/?api=1&query=${gmapQuery}`;
     const gmapDirectionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${gmapQuery}`;
 
+    const isOwner = this.currentUser && (listing.hostId === this.currentUser.id || listing.userId === this.currentUser.id);
+
     bodyEl.innerHTML = `
+      ${isOwner ? `
+        <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(6, 95, 70, 0.08)); border: 1.5px solid var(--primary); border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <div style="font-weight: 800; font-size: 0.95rem; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+              <span>🔑 Host Controls: Your Published Room</span>
+              <span class="pill-badge" style="background: ${listing.status === 'RENTED' ? '#fee2e2' : '#d1fae5'}; color: ${listing.status === 'RENTED' ? '#dc2626' : '#059669'}; font-size: 0.72rem; padding: 3px 8px;">● ${listing.status === 'RENTED' ? 'Occupied / Rented' : (listing.status === 'INACTIVE' ? 'Paused' : 'Live & Active')}</span>
+            </div>
+            <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 3px;">
+              Found your roommates? You can mark this room as rented or permanently delete this post anytime.
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            ${listing.status !== 'RENTED' ? `
+              <button type="button" class="btn btn-sm btn-outline" style="border-color: #f59e0b; color: #b45309; font-weight: 700;" onclick="app.toggleListingStatus('${listing.id}', 'RENTED'); app.closeModal('modal-listing-detail');">
+                🤝 Found Roommates! (Mark Rented)
+              </button>
+            ` : `
+              <button type="button" class="btn btn-sm btn-outline" onclick="app.toggleListingStatus('${listing.id}', 'ACTIVE'); app.closeModal('modal-listing-detail');">
+                🔄 Re-open Listing
+              </button>
+            `}
+            <button type="button" class="btn btn-sm btn-secondary" onclick="app.editListing('${listing.id}'); app.closeModal('modal-listing-detail');">
+              ✏️ Edit Details
+            </button>
+            <button type="button" class="btn btn-sm btn-danger" style="background: #dc2626; color: #fff; border: none; font-weight: 700; padding: 6px 14px;" onclick="app.deleteListing('${listing.id}', true)">
+              🗑️ Delete Post Permanently
+            </button>
+          </div>
+        </div>
+      ` : ''}
+
       <!-- INTERACTIVE PHOTO CAROUSEL -->
       <div class="detail-photo-carousel">
         <img src="${images[0]}" id="main-carousel-img" alt="Room Photo" onclick="app.openLightbox(app.detailActiveListing.images || [app.detailActiveListing.coverImage], app.detailActivePhotoIdx)" style="cursor: zoom-in;" title="Click to open fullscreen photo viewer">
@@ -2343,14 +2495,17 @@ class NestMateKeralaApp {
     }
   }
 
-  async deleteListing(id) {
-    if (!confirm('Are you sure you want to permanently delete this room listing?')) return;
+  async deleteListing(id, fromModal = false) {
+    if (!confirm('Are you sure you want to permanently delete this room post? Once deleted, it will be completely removed from the website.')) return;
     try {
-      await ListingsAPI.deleteListing(id);
+      await ListingsAPI.deleteListing(id, this.currentUser ? this.currentUser.id : null);
       this.listings = this.listings.filter(l => l.id !== id);
       Storage.saveListings(this.listings);
+      if (fromModal) {
+        this.closeModal('modal-listing-detail');
+      }
       this.renderListings();
-      this.showToast('🗑️ Room listing deleted permanently.');
+      this.showToast('🗑️ Your room post has been deleted successfully.');
     } catch (err) {
       this.showToast(`⚠️ ${err.message}`);
     }
@@ -2362,6 +2517,18 @@ class NestMateKeralaApp {
     if (!this.currentUser) {
       this.showToast('Please sign in or register to publish your room!');
       this.showLoginView();
+      return;
+    }
+
+    // Require real uploaded photos (No dummy/demo rooms allowed)
+    if (this.newListingPhotos.length === 0) {
+      this.showToast('📸 Please upload at least one real picture of your room before publishing!');
+      const zone = document.querySelector('.photo-upload-zone');
+      if (zone) {
+        zone.scrollIntoView({ behavior: 'smooth' });
+        zone.style.outline = '3px solid #ef4444';
+        setTimeout(() => { zone.style.outline = ''; }, 2500);
+      }
       return;
     }
 
@@ -2391,7 +2558,7 @@ class NestMateKeralaApp {
     }
 
     try {
-      const photos = this.newListingPhotos.length > 0 ? [...this.newListingPhotos] : [KERALA_ROOM_SVG];
+      const photos = [...this.newListingPhotos];
       const cover = photos[this.coverPhotoIndex] || photos[0];
 
       if (this.editingListingId) {

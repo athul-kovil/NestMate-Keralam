@@ -605,6 +605,11 @@
           </div>
 
           <div class="controls-right">
+            <div class="quick-location-search-wrap">
+              <svg class="quick-location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="text" id="quick-search-location" class="quick-location-input" placeholder="Search Kerala location..." list="kerala-hubs-list" oninput="app.handleQuickLocationInput(this.value)">
+            </div>
+
             <select class="sort-select" id="sort-select" onchange="app.handleSortChange(this.value)">
               <option value="newest" selected>🕒 Recently Added</option>
               <option value="price_asc">💰 Lowest Rent (₹)</option>
